@@ -1,6 +1,12 @@
 import { Application, Container, Graphics, Text } from 'pixi.js'
 
-import { groundY, worldHeight, worldWidth } from '@shared/constants/game'
+import {
+  groundY,
+  maxJumpPower,
+  minJumpPower,
+  worldHeight,
+  worldWidth,
+} from '@shared/constants/game'
 import {
   createInitialGameState,
   launchJump,
@@ -16,44 +22,35 @@ interface KeyboardState {
   justPressed: Set<string>
 }
 
+interface MouseState {
+  x: number
+  y: number
+  isInsideCanvas: boolean
+}
+
 interface PlayerControlScheme {
-  direction: {
-    up: string
-    down: string
-    left: string
-    right: string
-  }
   chargeKey: string
   miniJumpKey: string
 }
 
 const controls: Record<PlayerId, PlayerControlScheme> = {
   player1: {
-    direction: {
-      up: 'KeyW',
-      down: 'KeyS',
-      left: 'KeyA',
-      right: 'KeyD',
-    },
     chargeKey: 'KeyF',
     miniJumpKey: 'KeyG',
   },
   player2: {
-    direction: {
-      up: 'ArrowUp',
-      down: 'ArrowDown',
-      left: 'ArrowLeft',
-      right: 'ArrowRight',
-    },
     chargeKey: 'KeyK',
     miniJumpKey: 'KeyL',
   },
 }
 
-function getDirectionalVector(keys: KeyboardState, playerId: PlayerId): Vector2 {
-  const mapping = controls[playerId].direction
-  const x = (keys.pressed.has(mapping.right) ? 1 : 0) - (keys.pressed.has(mapping.left) ? 1 : 0)
-  const y = (keys.pressed.has(mapping.down) ? 1 : 0) - (keys.pressed.has(mapping.up) ? 1 : 0)
+function getDirectionalVector(mouse: MouseState, frogPosition: Vector2): Vector2 {
+  if (!mouse.isInsideCanvas) {
+    return { x: 0, y: -1 }
+  }
+
+  const x = mouse.x - frogPosition.x
+  const y = mouse.y - frogPosition.y
   return { x, y }
 }
 
@@ -74,6 +71,30 @@ function setupKeyboard(): KeyboardState {
   })
 
   return keyboardState
+}
+
+function setupMouse(canvas: HTMLCanvasElement): MouseState {
+  const mouseState: MouseState = {
+    x: worldWidth / 2,
+    y: groundY - 120,
+    isInsideCanvas: false,
+  }
+
+  canvas.addEventListener('pointermove', (event: PointerEvent) => {
+    const bounds = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / bounds.width
+    const scaleY = canvas.height / bounds.height
+
+    mouseState.x = (event.clientX - bounds.left) * scaleX
+    mouseState.y = (event.clientY - bounds.top) * scaleY
+    mouseState.isInsideCanvas = true
+  })
+
+  canvas.addEventListener('pointerleave', () => {
+    mouseState.isInsideCanvas = false
+  })
+
+  return mouseState
 }
 
 function findPlayerByRole(
@@ -100,6 +121,7 @@ async function bootstrap(): Promise<void> {
   root.appendChild(app.canvas)
 
   const keyboard = setupKeyboard()
+  const mouse = setupMouse(app.canvas)
   const stage = new Container()
   app.stage.addChild(stage)
 
@@ -127,6 +149,14 @@ async function bootstrap(): Promise<void> {
   hud.position.set(12, 12)
   stage.addChild(hud)
 
+  const powerBarBg = new Graphics()
+  powerBarBg.roundRect(12, 180, 220, 20, 8)
+  powerBarBg.fill(0x0f1a13)
+  stage.addChild(powerBarBg)
+
+  const powerBarFill = new Graphics()
+  stage.addChild(powerBarFill)
+
   let gameState = createInitialGameState()
   let wasCharging = false
 
@@ -134,7 +164,7 @@ async function bootstrap(): Promise<void> {
     const dtSeconds = app.ticker.deltaMS / 1000
     const directionPlayer = findPlayerByRole(gameState.roles, 'direction')
     const powerPlayer = findPlayerByRole(gameState.roles, 'power')
-    const directionInput = getDirectionalVector(keyboard, directionPlayer)
+    const directionInput = getDirectionalVector(mouse, gameState.frog.position)
     const powerMapping = controls[powerPlayer]
 
     const isCharging = keyboard.pressed.has(powerMapping.chargeKey)
@@ -163,12 +193,18 @@ async function bootstrap(): Promise<void> {
     )
     directionLine.stroke({ color: 0x101911, width: 3 })
 
+    const powerRatio = (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
+    const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
+    powerBarFill.clear()
+    powerBarFill.roundRect(14, 182, 216 * clampedPowerRatio, 16, 6)
+    powerBarFill.fill(0x7bdc67)
+
     hud.text = [
       `Phase: ${gameState.phase}`,
       `Jumps: ${gameState.jumpCount}`,
       `Power: ${Math.round(gameState.jumpPower)}`,
       `P1 role: ${gameState.roles.player1} | P2 role: ${gameState.roles.player2}`,
-      `Direction Player: ${directionPlayer} (WASD/Arrows)`,
+      'Direction: Mouse cursor',
       `Power Player: ${powerPlayer} (Hold F or K, mini jump G or L)`,
       `Mid-air used: ${gameState.midAirJumpUsed ? 'yes' : 'no'}`,
     ].join('\n')
