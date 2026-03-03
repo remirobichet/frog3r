@@ -1,3 +1,5 @@
+import { Client } from 'colyseus.js'
+import type { Room } from 'colyseus.js'
 import { Application, Container, Graphics, Text } from 'pixi.js'
 
 import {
@@ -7,15 +9,8 @@ import {
   worldHeight,
   worldWidth,
 } from '@shared/constants/game'
-import {
-  createInitialGameState,
-  launchJump,
-  simulateTick,
-  triggerMidAirJump,
-  updateCharge,
-  updateDirection,
-} from '@shared/utils/gameplay'
-import type { PlayerId, Vector2 } from '@shared/types/game-state'
+import type { GameState, PlayerId, Vector2 } from '@shared/types/game-state'
+import type { ClientInputMessage, JoinedMessage, StateMessage } from '@shared/types/network'
 
 interface KeyboardState {
   pressed: Set<string>
@@ -28,30 +23,26 @@ interface MouseState {
   isInsideCanvas: boolean
 }
 
-interface PlayerControlScheme {
-  chargeKey: string
-  miniJumpKey: string
+interface CreateRoomResponse {
+  inviteCode: string
+  roomId: string
+  inviteLink: string
 }
 
-const controls: Record<PlayerId, PlayerControlScheme> = {
-  player1: {
-    chargeKey: 'KeyF',
-    miniJumpKey: 'KeyG',
-  },
-  player2: {
-    chargeKey: 'KeyK',
-    miniJumpKey: 'KeyL',
-  },
+interface JoinRoomResponse {
+  inviteCode: string
+  roomId: string
 }
 
-function getDirectionalVector(mouse: MouseState, frogPosition: Vector2): Vector2 {
-  if (!mouse.isInsideCanvas) {
-    return { x: 0, y: -1 }
-  }
-
-  const x = mouse.x - frogPosition.x
-  const y = mouse.y - frogPosition.y
-  return { x, y }
+interface LobbyElements {
+  wrapper: HTMLDivElement
+  title: HTMLHeadingElement
+  subtitle: HTMLParagraphElement
+  codeInput: HTMLInputElement
+  createButton: HTMLButtonElement
+  joinButton: HTMLButtonElement
+  copyButton: HTMLButtonElement
+  status: HTMLParagraphElement
 }
 
 function setupKeyboard(): KeyboardState {
@@ -61,12 +52,20 @@ function setupKeyboard(): KeyboardState {
   }
 
   window.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.code === 'Space') {
+      event.preventDefault()
+    }
+
     if (!keyboardState.pressed.has(event.code)) {
       keyboardState.justPressed.add(event.code)
     }
     keyboardState.pressed.add(event.code)
   })
   window.addEventListener('keyup', (event: KeyboardEvent) => {
+    if (event.code === 'Space') {
+      event.preventDefault()
+    }
+
     keyboardState.pressed.delete(event.code)
   })
 
@@ -97,11 +96,149 @@ function setupMouse(canvas: HTMLCanvasElement): MouseState {
   return mouseState
 }
 
-function findPlayerByRole(
-  roles: Record<PlayerId, 'direction' | 'power'>,
-  role: 'direction' | 'power',
-): PlayerId {
-  return roles.player1 === role ? 'player1' : 'player2'
+function getDirectionalVector(mouse: MouseState, frogPosition: Vector2): Vector2 {
+  if (!mouse.isInsideCanvas) {
+    return { x: 0, y: -1 }
+  }
+
+  return {
+    x: mouse.x - frogPosition.x,
+    y: mouse.y - frogPosition.y,
+  }
+}
+
+function getServerHttpBase(): string {
+  const host = window.location.hostname || 'localhost'
+  return `${window.location.protocol}//${host}:2567`
+}
+
+function getServerWsBase(): string {
+  const host = window.location.hostname || 'localhost'
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${host}:2567`
+}
+
+function createLobby(root: HTMLElement): LobbyElements {
+  root.style.position = 'relative'
+
+  const wrapper = document.createElement('div')
+  wrapper.style.position = 'absolute'
+  wrapper.style.top = '16px'
+  wrapper.style.right = '16px'
+  wrapper.style.width = '320px'
+  wrapper.style.padding = '14px'
+  wrapper.style.background = 'rgba(10, 21, 15, 0.85)'
+  wrapper.style.border = '1px solid rgba(143, 201, 126, 0.5)'
+  wrapper.style.borderRadius = '10px'
+  wrapper.style.backdropFilter = 'blur(4px)'
+  wrapper.style.zIndex = '10'
+  wrapper.style.fontFamily = 'monospace'
+  wrapper.style.color = '#eef9e8'
+
+  const title = document.createElement('h2')
+  title.textContent = 'Dual Mind Frog'
+  title.style.margin = '0 0 8px 0'
+  title.style.fontSize = '20px'
+
+  const subtitle = document.createElement('p')
+  subtitle.textContent = 'Create or join an invite game.'
+  subtitle.style.margin = '0 0 12px 0'
+  subtitle.style.opacity = '0.9'
+
+  const codeInput = document.createElement('input')
+  codeInput.placeholder = 'Invite code'
+  codeInput.autocomplete = 'off'
+  codeInput.style.width = '100%'
+  codeInput.style.boxSizing = 'border-box'
+  codeInput.style.marginBottom = '10px'
+  codeInput.style.padding = '8px'
+  codeInput.style.borderRadius = '8px'
+  codeInput.style.border = '1px solid rgba(143, 201, 126, 0.5)'
+  codeInput.style.background = 'rgba(255, 255, 255, 0.08)'
+  codeInput.style.color = '#eef9e8'
+
+  const createButton = document.createElement('button')
+  createButton.textContent = 'Create Game'
+  createButton.style.width = '100%'
+  createButton.style.padding = '10px'
+  createButton.style.marginBottom = '8px'
+
+  const joinButton = document.createElement('button')
+  joinButton.textContent = 'Join Game'
+  joinButton.style.width = '100%'
+  joinButton.style.padding = '10px'
+  joinButton.style.marginBottom = '8px'
+
+  const copyButton = document.createElement('button')
+  copyButton.textContent = 'Copy Invite Link'
+  copyButton.style.width = '100%'
+  copyButton.style.padding = '10px'
+  copyButton.style.display = 'none'
+
+  const status = document.createElement('p')
+  status.textContent = 'Idle'
+  status.style.margin = '10px 0 0 0'
+  status.style.minHeight = '40px'
+
+  wrapper.appendChild(title)
+  wrapper.appendChild(subtitle)
+  wrapper.appendChild(codeInput)
+  wrapper.appendChild(createButton)
+  wrapper.appendChild(joinButton)
+  wrapper.appendChild(copyButton)
+  wrapper.appendChild(status)
+  root.appendChild(wrapper)
+
+  return {
+    wrapper,
+    title,
+    subtitle,
+    codeInput,
+    createButton,
+    joinButton,
+    copyButton,
+    status,
+  }
+}
+
+async function createRoom(httpBase: string): Promise<CreateRoomResponse> {
+  const response = await fetch(`${httpBase}/api/rooms`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to create room')
+  }
+
+  return response.json() as Promise<CreateRoomResponse>
+}
+
+async function joinByInviteCode(httpBase: string, inviteCode: string): Promise<JoinRoomResponse> {
+  const response = await fetch(`${httpBase}/api/rooms/join`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ inviteCode }),
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('Invite code not found')
+    }
+
+    if (response.status === 409) {
+      throw new Error('Room is full')
+    }
+
+    throw new Error('Unable to join room')
+  }
+
+  return response.json() as Promise<JoinRoomResponse>
 }
 
 async function bootstrap(): Promise<void> {
@@ -157,31 +294,183 @@ async function bootstrap(): Promise<void> {
   const powerBarFill = new Graphics()
   stage.addChild(powerBarFill)
 
-  let gameState = createInitialGameState()
-  let wasCharging = false
+  const lobby = createLobby(root)
+  const httpBase = getServerHttpBase()
+  const wsBase = getServerWsBase()
+  const client = new Client(wsBase)
+
+  let inviteLink = ''
+  let currentRoom: Room | null = null
+  let latestState: GameState | null = null
+  let myPlayerId: PlayerId | null = null
+  let connectedCount = 0
+  let myInviteCode = ''
+  let chargingSent = false
+  let lastAimSendAt = 0
+
+  function setStatus(text: string): void {
+    lobby.status.textContent = text
+  }
+
+  function setLobbyBusy(isBusy: boolean): void {
+    lobby.createButton.disabled = isBusy
+    lobby.joinButton.disabled = isBusy
+    lobby.codeInput.disabled = isBusy
+  }
+
+  function getMyRole(state: GameState): 'direction' | 'power' | 'spectator' {
+    if (!myPlayerId) {
+      return 'spectator'
+    }
+
+    return state.roles[myPlayerId]
+  }
+
+  function sendInput(input: ClientInputMessage): void {
+    if (!currentRoom) {
+      return
+    }
+
+    currentRoom.send('input', input)
+  }
+
+  async function connectToRoom(roomId: string, inviteCode: string): Promise<void> {
+    if (currentRoom) {
+      await currentRoom.leave()
+      currentRoom = null
+    }
+
+    setStatus('Connecting...')
+    const room = await client.joinById(roomId)
+    currentRoom = room
+    myInviteCode = inviteCode
+    chargingSent = false
+    lastAimSendAt = 0
+
+    room.onMessage('joined', (message: JoinedMessage) => {
+      myPlayerId = message.playerId
+      myInviteCode = message.inviteCode
+      setStatus(`Connected as ${message.playerId}. Invite: ${message.inviteCode}`)
+    })
+
+    room.onMessage('state', (message: StateMessage) => {
+      latestState = message.gameState
+      connectedCount = message.connectedCount
+    })
+
+    room.onLeave(() => {
+      setStatus('Disconnected from room')
+      lobby.wrapper.style.display = 'block'
+      currentRoom = null
+      myPlayerId = null
+      latestState = null
+    })
+
+    lobby.wrapper.style.display = 'none'
+  }
+
+  async function handleCreate(): Promise<void> {
+    setLobbyBusy(true)
+    try {
+      const room = await createRoom(httpBase)
+      inviteLink = room.inviteLink
+      lobby.codeInput.value = room.inviteCode
+      lobby.copyButton.style.display = 'block'
+      setStatus(`Room ${room.inviteCode} created. Share invite link.`)
+      await connectToRoom(room.roomId, room.inviteCode)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Create room failed'
+      setStatus(message)
+    } finally {
+      setLobbyBusy(false)
+    }
+  }
+
+  async function handleJoin(codeValue: string): Promise<void> {
+    const inviteCode = codeValue.trim().toUpperCase()
+    if (!inviteCode) {
+      setStatus('Enter an invite code')
+      return
+    }
+
+    setLobbyBusy(true)
+    try {
+      const room = await joinByInviteCode(httpBase, inviteCode)
+      inviteLink = `${window.location.origin}/?room=${inviteCode}`
+      lobby.copyButton.style.display = 'block'
+      await connectToRoom(room.roomId, inviteCode)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Join room failed'
+      setStatus(message)
+    } finally {
+      setLobbyBusy(false)
+    }
+  }
+
+  lobby.createButton.addEventListener('click', () => {
+    void handleCreate()
+  })
+
+  lobby.joinButton.addEventListener('click', () => {
+    void handleJoin(lobby.codeInput.value)
+  })
+
+  lobby.copyButton.addEventListener('click', async () => {
+    const link = inviteLink || `${window.location.origin}/?room=${myInviteCode}`
+    await navigator.clipboard.writeText(link)
+    setStatus(`Invite copied: ${link}`)
+  })
+
+  const roomFromUrl = new URLSearchParams(window.location.search).get('room')
+  if (roomFromUrl) {
+    lobby.codeInput.value = roomFromUrl.toUpperCase()
+    setStatus(`Auto-join ${roomFromUrl.toUpperCase()}...`)
+    void handleJoin(roomFromUrl)
+  }
 
   app.ticker.add(() => {
-    const dtSeconds = app.ticker.deltaMS / 1000
-    const directionPlayer = findPlayerByRole(gameState.roles, 'direction')
-    const powerPlayer = findPlayerByRole(gameState.roles, 'power')
-    const directionInput = getDirectionalVector(mouse, gameState.frog.position)
-    const powerMapping = controls[powerPlayer]
-
-    const isCharging = keyboard.pressed.has(powerMapping.chargeKey)
-
-    gameState = updateDirection(gameState, directionInput)
-    gameState = updateCharge(gameState, dtSeconds, isCharging)
-
-    if (wasCharging && !isCharging && gameState.phase === 'charging') {
-      gameState = launchJump(gameState)
-    }
-    wasCharging = isCharging
-
-    if (keyboard.justPressed.has(powerMapping.miniJumpKey)) {
-      gameState = triggerMidAirJump(gameState)
+    const gameState = latestState
+    if (!gameState) {
+      keyboard.justPressed.clear()
+      return
     }
 
-    gameState = simulateTick(gameState, dtSeconds)
+    const myRole = getMyRole(gameState)
+    const now = performance.now()
+
+    if (myRole === 'direction' && gameState.phase === 'charging') {
+      if (now - lastAimSendAt >= 50) {
+        const directionInput = getDirectionalVector(mouse, gameState.frog.position)
+        sendInput({
+          type: 'aim',
+          direction: directionInput,
+        })
+        lastAimSendAt = now
+      }
+    }
+
+    if (myRole === 'power') {
+      const charging = keyboard.pressed.has('Space')
+      if (charging !== chargingSent) {
+        sendInput({
+          type: 'charge',
+          active: charging,
+        })
+        chargingSent = charging
+      }
+
+      if (keyboard.justPressed.has('KeyE')) {
+        sendInput({
+          type: 'miniJump',
+        })
+      }
+    } else if (chargingSent) {
+      sendInput({
+        type: 'charge',
+        active: false,
+      })
+      chargingSent = false
+    }
 
     frog.position.set(gameState.frog.position.x, gameState.frog.position.y)
 
@@ -199,14 +488,13 @@ async function bootstrap(): Promise<void> {
     powerBarFill.roundRect(14, 182, 216 * clampedPowerRatio, 16, 6)
     powerBarFill.fill(0x7bdc67)
 
+    const roleText = myRole === 'spectator' ? 'spectator' : myRole
     hud.text = [
-      `Phase: ${gameState.phase}`,
-      `Jumps: ${gameState.jumpCount}`,
-      `Power: ${Math.round(gameState.jumpPower)}`,
-      `P1 role: ${gameState.roles.player1} | P2 role: ${gameState.roles.player2}`,
-      'Direction: Mouse cursor',
-      `Power Player: ${powerPlayer} (Hold F or K, mini jump G or L)`,
-      `Mid-air used: ${gameState.midAirJumpUsed ? 'yes' : 'no'}`,
+      `Room: ${myInviteCode || '-'} | Players: ${connectedCount}/2`,
+      `You: ${myPlayerId ?? '-'} | Role: ${roleText}`,
+      `Phase: ${gameState.phase} | Jumps: ${gameState.jumpCount}`,
+      `Power: ${Math.round(gameState.jumpPower)} | Mid-air used: ${gameState.midAirJumpUsed ? 'yes' : 'no'}`,
+      'Controls: mouse aim (direction role), hold SPACE (power role), E mini jump',
     ].join('\n')
 
     keyboard.justPressed.clear()
