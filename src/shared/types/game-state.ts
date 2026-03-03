@@ -3,7 +3,22 @@ export interface Vector2 {
   y: number
 }
 
+export type PlayerId = 'player1' | 'player2'
+export type PlayerRole = 'direction' | 'power'
+export type GamePhase = 'charging' | 'airborne'
+
+export interface FrogBodyState {
+  position: Vector2
+  velocity: Vector2
+}
+
 export interface GameState {
+  phase: GamePhase
+  frog: FrogBodyState
+  activeDirection: Vector2
   jumpDirection: Vector2
   jumpPower: number
+  roles: Record<PlayerId, PlayerRole>
+  midAirJumpUsed: boolean
+  jumpCount: number
 }
