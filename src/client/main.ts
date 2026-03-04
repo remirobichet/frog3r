@@ -57,7 +57,7 @@ async function bootstrap(): Promise<void> {
     })
 
     lobby.hide()
-    gameRootElement.style.display = 'block'
+    gameRootElement.style.display = 'flex'
   }
 
   async function handleCreate(): Promise<void> {

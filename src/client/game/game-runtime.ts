@@ -137,6 +137,21 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
 
   params.root.appendChild(app.canvas)
 
+  function resizeCanvasToViewport(): void {
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    const scale = Math.min(viewportWidth / worldWidth, viewportHeight / worldHeight)
+
+    const cssWidth = Math.floor(worldWidth * scale)
+    const cssHeight = Math.floor(worldHeight * scale)
+
+    app.canvas.style.width = `${cssWidth}px`
+    app.canvas.style.height = `${cssHeight}px`
+  }
+
+  resizeCanvasToViewport()
+  window.addEventListener('resize', resizeCanvasToViewport)
+
   const keyboard = setupKeyboard()
   const mouse = setupMouse(app.canvas)
 
@@ -284,6 +299,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
     destroy: () => {
       keyboard.destroy()
       mouse.destroy()
+      window.removeEventListener('resize', resizeCanvasToViewport)
       app.destroy(undefined, { children: true })
       if (app.canvas.parentElement === params.root) {
         params.root.removeChild(app.canvas)
