@@ -4,9 +4,113 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dual Mind Frog</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: radial-gradient(circle at 20% 15%, #234f3f 0%, #12251f 45%, #0b1411 100%);
+      }
+
+      #app {
+        min-height: 100vh;
+      }
+
+      #lobby {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+
+      #lobby-panel {
+        width: min(100%, 440px);
+        padding: 24px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(9, 28, 22, 0.94), rgba(9, 22, 18, 0.94));
+        border: 1px solid rgba(186, 238, 171, 0.35);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(6px);
+      }
+
+      #lobby-panel h1 {
+        margin: 0 0 8px;
+        color: #f2f9e9;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 34px;
+      }
+
+      #lobby-subtitle {
+        margin: 0 0 16px;
+        color: rgba(241, 252, 228, 0.9);
+        line-height: 1.4;
+      }
+
+      #invite-code {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(186, 238, 171, 0.35);
+        background: rgba(248, 255, 240, 0.08);
+        color: #f3fbe8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .lobby-action {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(208, 241, 198, 0.32);
+        background: rgba(22, 62, 48, 0.82);
+        color: #eff7df;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .lobby-action + .lobby-action {
+        margin-top: 8px;
+      }
+
+      #lobby-status {
+        min-height: 44px;
+        margin: 12px 0 0;
+        color: #d8edcf;
+      }
+
+      #game-root {
+        min-height: 100vh;
+        display: none;
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <section id="lobby">
+        <div id="lobby-panel">
+          <h1>Dual Mind Frog</h1>
+          <p id="lobby-subtitle">Create a lobby or join with an invite code before entering the game.</p>
+          <input id="invite-code" type="text" placeholder="Invite code" autocomplete="off" />
+          <button id="create-game" class="lobby-action" type="button">Create Game</button>
+          <button id="join-game" class="lobby-action" type="button">Join Game</button>
+          <button id="copy-invite" class="lobby-action" type="button" hidden>Copy Invite Link</button>
+          <p id="lobby-status">Ready</p>
+        </div>
+      </section>
+
+      <div id="game-root"></div>
+    </div>
     <script type="module" src="/src/client/main.ts"></script>
   </body>
 </html>
