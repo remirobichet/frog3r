@@ -96,10 +96,20 @@
         justify-content: center;
         overflow: hidden;
         background: #0b1411;
+        position: relative;
       }
 
       #game-root canvas {
         display: block;
+      }
+
+      #copy-invite-ingame {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        z-index: 2;
+        width: auto;
+        min-width: 170px;
       }
     </style>
   </head>
@@ -117,7 +127,11 @@
         </div>
       </section>
 
-      <div id="game-root"></div>
+      <div id="game-root">
+        <button id="copy-invite-ingame" class="lobby-action" type="button" hidden>
+          Copy Invite Link
+        </button>
+      </div>
     </div>
     <script type="module" src="/src/client/main.ts"></script>
   </body>

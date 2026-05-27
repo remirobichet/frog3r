@@ -27,10 +27,23 @@ function normalize(vector: Vector2): Vector2 {
   }
 }
 
-function swapRoles(roles: Record<PlayerId, PlayerRole>): Record<PlayerId, PlayerRole> {
+function rotateRoles(roles: Record<PlayerId, PlayerRole>): Record<PlayerId, PlayerRole> {
   return {
-    player1: roles.player1 === 'direction' ? 'power' : 'direction',
-    player2: roles.player2 === 'direction' ? 'power' : 'direction',
+    player1: roles.player1 === 'direction'
+      ? 'power'
+      : roles.player1 === 'power'
+        ? 'midJump'
+        : 'direction',
+    player2: roles.player2 === 'direction'
+      ? 'power'
+      : roles.player2 === 'power'
+        ? 'midJump'
+        : 'direction',
+    player3: roles.player3 === 'direction'
+      ? 'power'
+      : roles.player3 === 'power'
+        ? 'midJump'
+        : 'direction',
   }
 }
 
@@ -47,6 +60,7 @@ export function createInitialGameState(): GameState {
     roles: {
       player1: 'direction',
       player2: 'power',
+      player3: 'midJump',
     },
     midAirJumpUsed: false,
     jumpCount: 0,
@@ -157,6 +171,6 @@ export function simulateTick(state: GameState, deltaSeconds: number): GameState 
     jumpPower: minJumpPower,
     midAirJumpUsed: false,
     jumpCount: state.jumpCount + 1,
-    roles: swapRoles(state.roles),
+    roles: rotateRoles(state.roles),
   }
 }

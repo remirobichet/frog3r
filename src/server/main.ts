@@ -74,7 +74,7 @@ async function startServer(): Promise<void> {
       return
     }
 
-    if (targetRoom.locked || targetRoom.clients >= 2) {
+    if (targetRoom.locked || targetRoom.clients >= 3) {
       response.status(409).json({ error: 'Room is full' })
       return
     }

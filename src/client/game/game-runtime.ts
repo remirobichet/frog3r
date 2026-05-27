@@ -8,7 +8,7 @@ import {
   worldHeight,
   worldWidth,
 } from '@shared/constants/game'
-import type { GameState, PlayerId, Vector2 } from '@shared/types/game-state'
+import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
 import type { ClientInputMessage, JoinedMessage, StateMessage } from '@shared/types/network'
 
 interface KeyboardState {
@@ -197,7 +197,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   let chargingSent = false
   let lastAimSendAt = 0
 
-  function getMyRole(state: GameState): 'direction' | 'power' | 'spectator' {
+  function getMyRole(state: GameState): PlayerRole | 'spectator' {
     if (!myPlayerId) {
       return 'spectator'
     }
@@ -217,6 +217,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   params.room.onMessage('state', (message: StateMessage) => {
     latestState = message.gameState
     connectedCount = message.connectedCount
+    myPlayerId = message.playerId
   })
 
   params.room.onLeave(() => {
@@ -253,18 +254,18 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
         })
         chargingSent = charging
       }
-
-      if (keyboard.state.justPressed.has('KeyE')) {
-        sendInput({
-          type: 'miniJump',
-        })
-      }
     } else if (chargingSent) {
       sendInput({
         type: 'charge',
         active: false,
       })
       chargingSent = false
+    }
+
+    if (myRole === 'midJump' && keyboard.state.justPressed.has('KeyE')) {
+      sendInput({
+        type: 'miniJump',
+      })
     }
 
     frog.position.set(gameState.frog.position.x, gameState.frog.position.y)
@@ -285,11 +286,12 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
 
     const roleText = myRole === 'spectator' ? 'spectator' : myRole
     hud.text = [
-      `Room: ${myInviteCode || '-'} | Players: ${connectedCount}/2`,
+      `Room: ${myInviteCode || '-'} | Players: ${connectedCount}/3`,
       `You: ${myPlayerId ?? '-'} | Role: ${roleText}`,
+      `Roles: P1 ${gameState.roles.player1} | P2 ${gameState.roles.player2} | P3 ${gameState.roles.player3}`,
       `Phase: ${gameState.phase} | Jumps: ${gameState.jumpCount}`,
       `Power: ${Math.round(gameState.jumpPower)} | Mid-air used: ${gameState.midAirJumpUsed ? 'yes' : 'no'}`,
-      'Controls: mouse aim (direction role), hold SPACE (power role), E mini jump',
+      'Controls: mouse aim (direction), hold SPACE (power), E mid jump',
     ].join('\n')
 
     keyboard.state.justPressed.clear()

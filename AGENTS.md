@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Dual Mind Frog is a cooperative 2-player game where each player controls different aspects of a frog's jump. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
+Dual Mind Frog is a cooperative 3-player game where players control different aspects of a frog's jump. One player aims the jump, one charges and releases it, and one triggers the mid-air jump. Roles rotate after each landing. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
 
 ---
 

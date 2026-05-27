@@ -16,7 +16,13 @@ async function bootstrap(): Promise<void> {
     throw new Error('Missing #game-root mount node')
   }
 
+  const copyInviteInGameButtonElement = document.getElementById('copy-invite-ingame')
+  if (!(copyInviteInGameButtonElement instanceof HTMLButtonElement)) {
+    throw new Error('Missing #copy-invite-ingame button')
+  }
+
   const gameRootElement: HTMLElement = gameRoot
+  const copyInviteInGameButton: HTMLButtonElement = copyInviteInGameButtonElement
 
   const lobby = createLobbyPage()
   const httpBase = getServerHttpBase()
@@ -26,10 +32,37 @@ async function bootstrap(): Promise<void> {
   let inviteLink = ''
   let currentRoom: Room | null = null
   let gameRuntime: GameRuntime | null = null
+  let copyButtonResetTimeout: number | null = null
+
+  function resetCopyInviteButtonLabel(): void {
+    copyInviteInGameButton.textContent = 'Copy Invite Link'
+  }
+
+  function showInviteCopiedFeedback(): void {
+    resetCopyInviteButtonLabel()
+
+    if (copyButtonResetTimeout !== null) {
+      window.clearTimeout(copyButtonResetTimeout)
+    }
+
+    copyInviteInGameButton.textContent = 'Invite Link Copied'
+    copyButtonResetTimeout = window.setTimeout(() => {
+      resetCopyInviteButtonLabel()
+      copyButtonResetTimeout = null
+    }, 1500)
+  }
 
   async function teardownGame(): Promise<void> {
     gameRuntime?.destroy()
     gameRuntime = null
+    copyInviteInGameButton.hidden = true
+
+    if (copyButtonResetTimeout !== null) {
+      window.clearTimeout(copyButtonResetTimeout)
+      copyButtonResetTimeout = null
+    }
+
+    resetCopyInviteButtonLabel()
 
     if (currentRoom) {
       await currentRoom.leave()
@@ -58,6 +91,7 @@ async function bootstrap(): Promise<void> {
 
     lobby.hide()
     gameRootElement.style.display = 'flex'
+    copyInviteInGameButton.hidden = false
   }
 
   async function handleCreate(): Promise<void> {
@@ -114,6 +148,15 @@ async function bootstrap(): Promise<void> {
 
     await navigator.clipboard.writeText(link)
     lobby.setStatus(`Invite copied: ${link}`)
+    showInviteCopiedFeedback()
+  })
+
+  copyInviteInGameButton.addEventListener('click', async () => {
+    const activeInviteCode = gameRuntime?.getInviteCode() || lobby.getInviteCode().trim().toUpperCase()
+    const link = inviteLink || `${window.location.origin}/?room=${activeInviteCode}`
+
+    await navigator.clipboard.writeText(link)
+    showInviteCopiedFeedback()
   })
 
   const roomFromUrl = new URLSearchParams(window.location.search).get('room')

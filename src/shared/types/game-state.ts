@@ -3,8 +3,8 @@ export interface Vector2 {
   y: number
 }
 
-export type PlayerId = 'player1' | 'player2'
-export type PlayerRole = 'direction' | 'power'
+export type PlayerId = 'player1' | 'player2' | 'player3'
+export type PlayerRole = 'direction' | 'power' | 'midJump'
 export type GamePhase = 'charging' | 'airborne'
 
 export interface FrogBodyState {

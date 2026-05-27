@@ -3,7 +3,7 @@ import type { Client } from 'colyseus'
 
 import { fixedTimestepMs } from '@shared/constants/game'
 import type { ClientInputMessage, JoinedMessage, StateMessage } from '@shared/types/network'
-import type { GameState, PlayerId, Vector2 } from '@shared/types/game-state'
+import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
 import {
   createInitialGameState,
   launchJump,
@@ -17,14 +17,22 @@ interface RoomOptions {
   inviteCode: string
 }
 
-const playerOrder: PlayerId[] = ['player1', 'player2']
+const playerOrder: PlayerId[] = ['player1', 'player2', 'player3']
 
-function findPlayerByRole(state: GameState, role: 'direction' | 'power'): PlayerId {
-  return state.roles.player1 === role ? 'player1' : 'player2'
+function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
+  if (state.roles.player1 === role) {
+    return 'player1'
+  }
+
+  if (state.roles.player2 === role) {
+    return 'player2'
+  }
+
+  return 'player3'
 }
 
 export class GameRoom extends Room {
-  public maxClients = 2
+  public maxClients = 3
 
   private inviteCode = ''
   private gameState: GameState = createInitialGameState()
@@ -32,14 +40,17 @@ export class GameRoom extends Room {
   private directionIntent: Record<PlayerId, Vector2> = {
     player1: { x: 0, y: -1 },
     player2: { x: 0, y: -1 },
+    player3: { x: 0, y: -1 },
   }
   private chargingIntent: Record<PlayerId, boolean> = {
     player1: false,
     player2: false,
+    player3: false,
   }
   private miniJumpQueued: Record<PlayerId, boolean> = {
     player1: false,
     player2: false,
+    player3: false,
   }
   private wasCharging = false
 
@@ -100,6 +111,7 @@ export class GameRoom extends Room {
   private tick(deltaSeconds: number): void {
     const directionPlayer = findPlayerByRole(this.gameState, 'direction')
     const powerPlayer = findPlayerByRole(this.gameState, 'power')
+    const midJumpPlayer = findPlayerByRole(this.gameState, 'midJump')
     const directionInput = this.directionIntent[directionPlayer]
     const isCharging = this.chargingIntent[powerPlayer]
 
@@ -111,19 +123,22 @@ export class GameRoom extends Room {
     }
     this.wasCharging = isCharging
 
-    if (this.miniJumpQueued[powerPlayer]) {
+    if (this.miniJumpQueued[midJumpPlayer]) {
       this.gameState = triggerMidAirJump(this.gameState)
-      this.miniJumpQueued[powerPlayer] = false
+      this.miniJumpQueued[midJumpPlayer] = false
     }
 
     this.gameState = simulateTick(this.gameState, deltaSeconds)
   }
 
   private broadcastState(): void {
-    const payload: StateMessage = {
-      gameState: this.gameState,
-      connectedCount: this.clients.length,
+    for (const client of this.clients) {
+      const payload: StateMessage = {
+        gameState: this.gameState,
+        connectedCount: this.clients.length,
+        playerId: this.sessionToPlayer.get(client.sessionId) ?? null,
+      }
+      client.send('state', payload)
     }
-    this.broadcast('state', payload)
   }
 }

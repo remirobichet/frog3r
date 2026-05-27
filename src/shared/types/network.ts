@@ -24,4 +24,5 @@ export interface JoinedMessage {
 export interface StateMessage {
   gameState: GameState
   connectedCount: number
+  playerId: PlayerId | null
 }
