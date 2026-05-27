@@ -1,8 +1,8 @@
-# AGENTS.md - Dual Mind Frog
+# AGENTS.md - Frog3r
 
 ## Project Overview
 
-Dual Mind Frog is a cooperative 3-player game where players control different aspects of a frog's jump. One player aims the jump, one charges and releases it, and one triggers the mid-air jump. Roles rotate after each landing. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
+Frog3r is a cooperative 3-player game where players control different aspects of a frog's jump. One player aims the jump, one charges and releases it, and one triggers the mid-air jump. Roles rotate after each landing. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
 
 ---
 
@@ -105,7 +105,7 @@ class GameError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly context?: Record<string, unknown>
+    public readonly context?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'GameError';
