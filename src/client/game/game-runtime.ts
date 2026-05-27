@@ -421,7 +421,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
       chargingSent = false
     }
 
-    if (myRole === 'midJump' && keyboard.state.justPressed.has('KeyE')) {
+    if (myRole === 'midJump' && keyboard.state.justPressed.has('Space')) {
       sendInput({
         type: 'miniJump',
       })
