@@ -10,14 +10,23 @@ export interface JoinRoomResponse {
 }
 
 export function getServerHttpBase(): string {
-  const host = window.location.hostname || 'localhost'
-  return `${window.location.protocol}//${host}:2567`
+  if (import.meta.env.DEV) {
+    const host = window.location.hostname || 'localhost'
+    return `${window.location.protocol}//${host}:2567`
+  }
+
+  return window.location.origin
 }
 
 export function getServerWsBase(): string {
-  const host = window.location.hostname || 'localhost'
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${host}:2567`
+
+  if (import.meta.env.DEV) {
+    const host = window.location.hostname || 'localhost'
+    return `${protocol}//${host}:2567`
+  }
+
+  return `${protocol}//${window.location.host}`
 }
 
 export async function createRoom(httpBase: string): Promise<CreateRoomResponse> {

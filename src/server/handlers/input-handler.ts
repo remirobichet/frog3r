@@ -1,5 +1,5 @@
-import type { GameState } from '@shared/types/game-state'
-import { launchJump, triggerMidAirJump, updateCharge, updateDirection } from '@shared/utils/gameplay'
+import type { GameState } from '../../shared/types/game-state'
+import { launchJump, triggerMidAirJump, updateCharge, updateDirection } from '../../shared/utils/gameplay'
 
 export interface PlayerInput {
   directionX: number

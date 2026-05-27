@@ -1,10 +1,10 @@
 import { Room } from 'colyseus'
 import type { Client } from 'colyseus'
 
-import { fixedTimestepMs } from '@shared/constants/game'
-import { availableLevels, defaultLevelId, getLevelById } from '@shared/levels'
-import type { ClientInputMessage, JoinedMessage, StateMessage } from '@shared/types/network'
-import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
+import { fixedTimestepMs } from '../../shared/constants/game'
+import { availableLevels, defaultLevelId, getLevelById } from '../../shared/levels'
+import type { ClientInputMessage, JoinedMessage, StateMessage } from '../../shared/types/network'
+import type { GameState, PlayerId, PlayerRole, Vector2 } from '../../shared/types/game-state'
 import {
   createInitialGameState,
   launchJump,
@@ -12,7 +12,7 @@ import {
   triggerMidAirJump,
   updateCharge,
   updateDirection,
-} from '@shared/utils/gameplay'
+} from '../../shared/utils/gameplay'
 
 interface RoomOptions {
   inviteCode: string

@@ -1,15 +1,20 @@
 import http from 'node:http'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { matchMaker, Server } from 'colyseus'
 import cors from 'cors'
 import express, { type Request, type Response } from 'express'
 
-import { gameRoomName } from '@shared/constants/game'
+import { gameRoomName } from '../shared/constants/game'
 
 import { GameRoom } from './rooms/game-room'
 
 const port = Number(process.env.PORT ?? 2567)
 const host = process.env.HOST ?? '0.0.0.0'
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
+const clientDistDirectory = path.resolve(process.cwd(), 'dist')
+const clientIndexPath = path.join(clientDistDirectory, 'index.html')
 
 function createInviteCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -83,6 +88,17 @@ async function startServer(): Promise<void> {
       inviteCode,
       roomId: targetRoom.roomId,
     })
+  })
+
+  app.use(express.static(clientDistDirectory))
+
+  app.get('*', (request: Request, response: Response) => {
+    if (request.path.startsWith('/api/')) {
+      response.status(404).json({ error: 'Not found' })
+      return
+    }
+
+    response.sendFile(clientIndexPath)
   })
 
   await gameServer.listen(port)
