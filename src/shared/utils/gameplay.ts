@@ -1,14 +1,14 @@
 import {
   chargeRate,
+  frogRadius,
   gravity,
-  groundY,
   horizontalSpeedFactor,
   maxJumpPower,
   miniJumpHorizontalBoost,
   miniJumpVerticalBoost,
   minJumpPower,
-  worldWidth,
 } from '@shared/constants/game'
+import type { LevelData, Platform } from '@shared/types/level'
 import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
 
 function clamp(value: number, min: number, max: number): number {
@@ -47,11 +47,39 @@ function rotateRoles(roles: Record<PlayerId, PlayerRole>): Record<PlayerId, Play
   }
 }
 
-export function createInitialGameState(): GameState {
+function overlapsPlatform(platform: Platform, x: number): boolean {
+  return (x + frogRadius) > platform.x && (x - frogRadius) < (platform.x + platform.width)
+}
+
+function findLandingHeight(
+  previousPosition: Vector2,
+  nextPosition: Vector2,
+  level: LevelData,
+): number | null {
+  if (nextPosition.y < previousPosition.y) {
+    return null
+  }
+
+  let landingHeight: number | null = null
+
+  for (const platform of level.platforms) {
+    if (!overlapsPlatform(platform, nextPosition.x)) {
+      continue
+    }
+
+    if (previousPosition.y <= platform.y && nextPosition.y >= platform.y) {
+      landingHeight = landingHeight === null ? platform.y : Math.min(landingHeight, platform.y)
+    }
+  }
+
+  return landingHeight
+}
+
+export function createInitialGameState(level: LevelData): GameState {
   return {
     phase: 'charging',
     frog: {
-      position: { x: 180, y: groundY },
+      position: { x: level.spawn.x, y: level.spawn.y },
       velocity: { x: 0, y: 0 },
     },
     activeDirection: { x: 0, y: -1 },
@@ -134,7 +162,7 @@ export function triggerMidAirJump(state: GameState): GameState {
   }
 }
 
-export function simulateTick(state: GameState, deltaSeconds: number): GameState {
+export function simulateTick(state: GameState, deltaSeconds: number, level: LevelData): GameState {
   if (state.phase !== 'airborne') {
     return state
   }
@@ -144,11 +172,16 @@ export function simulateTick(state: GameState, deltaSeconds: number): GameState 
     y: state.frog.velocity.y + (gravity * deltaSeconds),
   }
   const nextPosition = {
-    x: clamp(state.frog.position.x + (nextVelocity.x * deltaSeconds), 24, worldWidth - 24),
+    x: clamp(
+      state.frog.position.x + (nextVelocity.x * deltaSeconds),
+      frogRadius,
+      level.worldWidth - frogRadius,
+    ),
     y: state.frog.position.y + (nextVelocity.y * deltaSeconds),
   }
+  const landingHeight = findLandingHeight(state.frog.position, nextPosition, level)
 
-  if (nextPosition.y < groundY) {
+  if (landingHeight === null) {
     return {
       ...state,
       frog: {
@@ -164,7 +197,7 @@ export function simulateTick(state: GameState, deltaSeconds: number): GameState 
     frog: {
       position: {
         x: nextPosition.x,
-        y: groundY,
+        y: landingHeight,
       },
       velocity: { x: 0, y: 0 },
     },

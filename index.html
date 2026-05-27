@@ -16,8 +16,20 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: radial-gradient(circle at 20% 15%, #234f3f 0%, #12251f 45%, #0b1411 100%);
+        font-family: Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(62, 107, 69, 0.28),
+            transparent 34%
+          ),
+          radial-gradient(
+            circle at right center,
+            rgba(40, 78, 66, 0.22),
+            transparent 28%
+          ),
+          linear-gradient(180deg, #13241d 0%, #0b1411 100%);
+        color: #eef6e4;
       }
 
       #app {
@@ -32,61 +44,133 @@
       }
 
       #lobby-panel {
-        width: min(100%, 440px);
-        padding: 24px;
-        border-radius: 16px;
-        background: linear-gradient(180deg, rgba(9, 28, 22, 0.94), rgba(9, 22, 18, 0.94));
-        border: 1px solid rgba(186, 238, 171, 0.35);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
-        backdrop-filter: blur(6px);
+        width: min(100%, 472px);
+        padding: 28px;
+        border-radius: 24px;
+        background: linear-gradient(
+          180deg,
+          rgba(12, 31, 24, 0.94),
+          rgba(8, 20, 17, 0.94)
+        );
+        border: 1px solid rgba(201, 234, 188, 0.18);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(14px);
       }
 
       #lobby-panel h1 {
-        margin: 0 0 8px;
+        margin: 0 0 10px;
         color: #f2f9e9;
-        font-family: Georgia, 'Times New Roman', serif;
-        font-size: 34px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2.25rem, 6vw, 3rem);
+        line-height: 0.98;
+        letter-spacing: -0.04em;
+        text-wrap: balance;
       }
 
       #lobby-subtitle {
-        margin: 0 0 16px;
-        color: rgba(241, 252, 228, 0.9);
-        line-height: 1.4;
+        max-width: 34ch;
+        margin: 0 0 22px;
+        color: rgba(231, 243, 220, 0.82);
+        line-height: 1.55;
+        text-wrap: pretty;
+      }
+
+      .invite-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
       }
 
       #invite-code {
         width: 100%;
-        padding: 12px;
-        margin-bottom: 10px;
-        border-radius: 10px;
-        border: 1px solid rgba(186, 238, 171, 0.35);
-        background: rgba(248, 255, 240, 0.08);
+        min-width: 0;
+        padding: 13px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(186, 238, 171, 0.2);
+        background: rgba(243, 252, 233, 0.07);
         color: #f3fbe8;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: 0.1em;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.94rem;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
+        outline: none;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      #invite-code:focus {
+        border-color: rgba(188, 232, 175, 0.45);
+        background: rgba(243, 252, 233, 0.11);
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
       }
 
       .lobby-action {
-        width: 100%;
         padding: 12px 14px;
-        border-radius: 10px;
-        border: 1px solid rgba(208, 241, 198, 0.32);
-        background: rgba(22, 62, 48, 0.82);
+        border-radius: 14px;
+        border: 1px solid rgba(208, 241, 198, 0.18);
+        background: rgba(29, 63, 51, 0.92);
         color: #eff7df;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 14px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.88rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
         cursor: pointer;
+        transition:
+          transform 180ms ease,
+          background 180ms ease,
+          border-color 180ms ease,
+          box-shadow 180ms ease;
       }
 
-      .lobby-action + .lobby-action {
-        margin-top: 8px;
+      .lobby-action:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: rgba(42, 84, 68, 0.96);
+        border-color: rgba(208, 241, 198, 0.3);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+      }
+
+      .lobby-action:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .lobby-action:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.16);
+      }
+
+      .lobby-action:disabled {
+        cursor: default;
+        opacity: 0.58;
+      }
+
+      .lobby-action.compact {
+        width: auto;
+        min-width: 132px;
+        padding-inline: 12px;
+        font-size: 0.82rem;
+      }
+
+      .action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
       }
 
       #lobby-status {
-        min-height: 44px;
-        margin: 12px 0 0;
-        color: #d8edcf;
+        min-height: 48px;
+        margin: 16px 0 0;
+        padding-top: 16px;
+        border-top: 1px solid rgba(208, 241, 198, 0.1);
+        color: rgba(216, 237, 207, 0.92);
+        font-size: 0.95rem;
+        line-height: 1.55;
+        text-wrap: pretty;
       }
 
       #game-root {
@@ -104,12 +188,256 @@
       }
 
       #copy-invite-ingame {
+        position: static;
+        min-width: 0;
+      }
+
+      #room-controls {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        z-index: 2;
+        width: min(320px, calc(100vw - 32px));
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(201, 234, 188, 0.18);
+        background: linear-gradient(
+          180deg,
+          rgba(11, 26, 21, 0.88),
+          rgba(10, 21, 18, 0.82)
+        );
+        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(14px);
+      }
+
+      #player-role-banner {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 2;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        width: min(280px, calc(100vw - 160px));
+        padding: 12px 18px;
+        border-radius: 20px;
+        border: 1px solid rgba(201, 234, 188, 0.18);
+        background: linear-gradient(
+          180deg,
+          rgba(11, 26, 21, 0.9),
+          rgba(10, 21, 18, 0.84)
+        );
+        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(14px);
+        pointer-events: none;
+      }
+
+      .player-role-label {
+        color: rgba(222, 241, 209, 0.72);
+        font-size: 0.68rem;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .player-role-value {
+        color: #f2f9e9;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(1.65rem, 3.6vw, 2.4rem);
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+        text-transform: capitalize;
+        text-wrap: balance;
+      }
+
+      .room-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .room-label,
+      .level-label {
+        display: block;
+        color: rgba(222, 241, 209, 0.72);
+        font-size: 0.72rem;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .room-value {
+        display: inline-flex;
+        align-items: center;
+        min-height: 42px;
+        padding: 0 14px;
+        border-radius: 14px;
+        background: rgba(243, 252, 233, 0.08);
+        border: 1px solid rgba(186, 238, 171, 0.16);
+        color: #f3fbe8;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.96rem;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.14em;
+      }
+
+      .room-copy-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .room-copy-row .compact {
+        min-width: 108px;
+      }
+
+      .level-select {
+        width: 100%;
+        padding: 11px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(186, 238, 171, 0.16);
+        background: rgba(243, 252, 233, 0.08);
+        color: #f3fbe8;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        outline: none;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .level-select:focus-visible {
+        border-color: rgba(188, 232, 175, 0.45);
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
+      }
+
+      .level-note {
+        margin: 10px 0 0;
+        color: rgba(216, 237, 207, 0.82);
+        font-size: 12px;
+        line-height: 1.4;
+        text-wrap: pretty;
+      }
+
+      #game-status {
         position: absolute;
         top: 16px;
         right: 16px;
         z-index: 2;
-        width: auto;
-        min-width: 170px;
+        width: min(312px, calc(100vw - 32px));
+        padding: 12px;
+        border-radius: 18px;
+        border: 1px solid rgba(201, 234, 188, 0.18);
+        background: linear-gradient(
+          180deg,
+          rgba(11, 26, 21, 0.88),
+          rgba(10, 21, 18, 0.82)
+        );
+        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(14px);
+      }
+
+      .status-title {
+        margin-bottom: 10px;
+        color: #f2f9e9;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.08rem;
+        letter-spacing: -0.02em;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .status-item {
+        padding: 9px 10px;
+        border-radius: 12px;
+        background: rgba(243, 252, 233, 0.08);
+        border: 1px solid rgba(186, 238, 171, 0.12);
+      }
+
+      .status-item-wide {
+        margin-top: 8px;
+      }
+
+      .status-item-large {
+        margin-top: 8px;
+        min-height: 82px;
+      }
+
+      .status-label {
+        display: block;
+        margin-bottom: 5px;
+        color: rgba(222, 241, 209, 0.72);
+        font-size: 0.68rem;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .status-value {
+        display: block;
+        color: #f3fbe8;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.82rem;
+        line-height: 1.35;
+        font-variant-numeric: tabular-nums;
+        text-wrap: pretty;
+      }
+
+      @media (max-width: 640px) {
+        #lobby {
+          padding: 12px;
+        }
+
+        #lobby-panel {
+          padding: 22px;
+          border-radius: 20px;
+        }
+
+        .invite-row,
+        .action-row,
+        .room-copy-row {
+          grid-template-columns: 1fr;
+        }
+
+        .lobby-action.compact,
+        .room-copy-row .compact {
+          width: 100%;
+        }
+
+        #room-controls {
+          top: 12px;
+          left: 12px;
+          width: min(320px, calc(100vw - 24px));
+        }
+
+        #player-role-banner {
+          top: 12px;
+          width: min(240px, calc(100vw - 176px));
+          padding: 10px 14px;
+        }
+
+        #game-status {
+          top: auto;
+          right: 12px;
+          bottom: 12px;
+          width: min(312px, calc(100vw - 24px));
+        }
       }
     </style>
   </head>
@@ -118,19 +446,110 @@
       <section id="lobby">
         <div id="lobby-panel">
           <h1>Dual Mind Frog</h1>
-          <p id="lobby-subtitle">Create a lobby or join with an invite code before entering the game.</p>
-          <input id="invite-code" type="text" placeholder="Invite code" autocomplete="off" />
-          <button id="create-game" class="lobby-action" type="button">Create Game</button>
-          <button id="join-game" class="lobby-action" type="button">Join Game</button>
-          <button id="copy-invite" class="lobby-action" type="button" hidden>Copy Invite Link</button>
+          <p id="lobby-subtitle">
+            Create a lobby or join with an invite code before entering the game.
+          </p>
+          <div class="invite-row">
+            <input
+              id="invite-code"
+              type="text"
+              placeholder="Invite code"
+              autocomplete="off"
+            />
+            <button
+              id="copy-invite"
+              class="lobby-action compact"
+              type="button"
+              hidden
+            >
+              Copy Link
+            </button>
+          </div>
+          <div class="action-row">
+            <button id="create-game" class="lobby-action" type="button">
+              Create Game
+            </button>
+            <button id="join-game" class="lobby-action" type="button">
+              Join Game
+            </button>
+          </div>
           <p id="lobby-status">Ready</p>
         </div>
       </section>
 
       <div id="game-root">
-        <button id="copy-invite-ingame" class="lobby-action" type="button" hidden>
-          Copy Invite Link
-        </button>
+        <aside id="room-controls">
+          <div class="room-heading">
+            <span class="room-label">Room</span>
+          </div>
+          <div class="room-copy-row">
+            <span id="room-code" class="room-value">------</span>
+            <button
+              id="copy-invite-ingame"
+              class="lobby-action compact"
+              type="button"
+            >
+              Copy Link
+            </button>
+          </div>
+          <label class="level-label" for="level-select">Level</label>
+          <select id="level-select" class="level-select"></select>
+          <p id="level-note" class="level-note">
+            Only the room creator can switch the level.
+          </p>
+        </aside>
+
+        <div id="player-role-banner">
+          <span class="player-role-label">Your role</span>
+          <span id="player-role-value" class="player-role-value">Spectator</span>
+        </div>
+
+        <aside id="game-status">
+          <div class="status-grid">
+            <div class="status-item">
+              <span class="status-label">Players</span
+              ><span id="status-players" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">You</span
+              ><span id="status-player" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Creator</span
+              ><span id="status-creator" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Level</span
+              ><span id="status-level" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Phase</span
+              ><span id="status-phase" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Jumps</span
+              ><span id="status-jumps" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Power</span
+              ><span id="status-power" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Mid-air</span
+              ><span id="status-midair" class="status-value">-</span>
+            </div>
+          </div>
+          <div class="status-item status-item-wide">
+            <span class="status-label">Roles</span
+            ><span id="status-roles" class="status-value">-</span>
+          </div>
+          <div class="status-item status-item-large">
+            <span class="status-label">Controls</span
+            ><span id="status-controls" class="status-value"
+              >Mouse aim, hold SPACE to charge, E for mid jump.</span
+            >
+          </div>
+        </aside>
       </div>
     </div>
     <script type="module" src="/src/client/main.ts"></script>

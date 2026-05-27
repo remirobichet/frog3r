@@ -3,7 +3,7 @@ export const fixedTimestepMs = 1000 / 60
 
 export const worldWidth = 1920
 export const worldHeight = 1080
-export const groundY = 920
+export const frogRadius = 24
 
 export const gravity = 1900
 export const maxJumpPower = 900

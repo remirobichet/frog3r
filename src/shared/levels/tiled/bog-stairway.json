@@ -1,0 +1,36 @@
+{
+  "type": "map",
+  "width": 48,
+  "height": 27,
+  "tilewidth": 40,
+  "tileheight": 40,
+  "layers": [
+    {
+      "id": 1,
+      "name": "platforms",
+      "type": "objectgroup",
+      "objects": [
+        { "id": 1, "x": 0, "y": 920, "width": 760, "height": 160 },
+        { "id": 2, "x": 250, "y": 810, "width": 180, "height": 24 },
+        { "id": 3, "x": 500, "y": 700, "width": 180, "height": 24 },
+        { "id": 4, "x": 760, "y": 590, "width": 200, "height": 24 },
+        { "id": 5, "x": 1040, "y": 500, "width": 220, "height": 24 },
+        { "id": 6, "x": 1360, "y": 620, "width": 180, "height": 24 },
+        { "id": 7, "x": 1560, "y": 760, "width": 360, "height": 320 }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "markers",
+      "type": "objectgroup",
+      "objects": [
+        { "id": 101, "name": "spawn", "point": true, "x": 160, "y": 920 }
+      ]
+    }
+  ],
+  "properties": [
+    { "name": "displayName", "type": "string", "value": "Bog Stairway" },
+    { "name": "backgroundColor", "type": "string", "value": "#1e2d3f" },
+    { "name": "platformColor", "type": "string", "value": "#5a6e85" }
+  ]
+}

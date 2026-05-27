@@ -39,6 +39,7 @@ export function createLobbyPage(): LobbyPage {
       codeInput.disabled = isBusy
       createButton.disabled = isBusy
       joinButton.disabled = isBusy
+      copyButton.disabled = isBusy
     },
     setStatus: (text: string) => {
       status.textContent = text

@@ -1,0 +1,35 @@
+{
+  "type": "map",
+  "width": 48,
+  "height": 27,
+  "tilewidth": 40,
+  "tileheight": 40,
+  "layers": [
+    {
+      "id": 1,
+      "name": "platforms",
+      "type": "objectgroup",
+      "objects": [
+        { "id": 1, "x": 0, "y": 920, "width": 1920, "height": 160 },
+        { "id": 2, "x": 320, "y": 820, "width": 220, "height": 24 },
+        { "id": 3, "x": 640, "y": 730, "width": 220, "height": 24 },
+        { "id": 4, "x": 980, "y": 650, "width": 200, "height": 24 },
+        { "id": 5, "x": 1280, "y": 760, "width": 240, "height": 24 },
+        { "id": 6, "x": 1620, "y": 680, "width": 200, "height": 24 }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "markers",
+      "type": "objectgroup",
+      "objects": [
+        { "id": 101, "name": "spawn", "point": true, "x": 180, "y": 920 }
+      ]
+    }
+  ],
+  "properties": [
+    { "name": "displayName", "type": "string", "value": "Lily Pad Sprint" },
+    { "name": "backgroundColor", "type": "string", "value": "#17392d" },
+    { "name": "platformColor", "type": "string", "value": "#3e6b45" }
+  ]
+}

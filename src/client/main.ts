@@ -35,7 +35,7 @@ async function bootstrap(): Promise<void> {
   let copyButtonResetTimeout: number | null = null
 
   function resetCopyInviteButtonLabel(): void {
-    copyInviteInGameButton.textContent = 'Copy Invite Link'
+    copyInviteInGameButton.textContent = 'Copy Link'
   }
 
   function showInviteCopiedFeedback(): void {
@@ -45,7 +45,7 @@ async function bootstrap(): Promise<void> {
       window.clearTimeout(copyButtonResetTimeout)
     }
 
-    copyInviteInGameButton.textContent = 'Invite Link Copied'
+    copyInviteInGameButton.textContent = 'Copied'
     copyButtonResetTimeout = window.setTimeout(() => {
       resetCopyInviteButtonLabel()
       copyButtonResetTimeout = null
@@ -91,7 +91,6 @@ async function bootstrap(): Promise<void> {
 
     lobby.hide()
     gameRootElement.style.display = 'flex'
-    copyInviteInGameButton.hidden = false
   }
 
   async function handleCreate(): Promise<void> {
