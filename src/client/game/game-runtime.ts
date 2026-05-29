@@ -1,6 +1,16 @@
 import type { Room } from 'colyseus.js'
-import { Application, Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js'
+import {
+  AnimatedSprite,
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Rectangle,
+  Sprite,
+  Texture,
+} from 'pixi.js'
 
+import frogSpritesheetUrl from '@client/assets/frog/frog.png'
 import terrainTilesetUrl from '@client/assets/tiles/full.png'
 import {
   frogRadius,
@@ -10,9 +20,18 @@ import {
   worldWidth,
 } from '@shared/constants/game'
 import { availableLevels, getDefaultLevel, getLevelById } from '@shared/levels'
-import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
+import type {
+  GameState,
+  PlayerId,
+  PlayerRole,
+  Vector2,
+} from '@shared/types/game-state'
 import type { LevelData, LevelSummary } from '@shared/types/level'
-import type { ClientInputMessage, JoinedMessage, StateMessage } from '@shared/types/network'
+import type {
+  ClientInputMessage,
+  JoinedMessage,
+  StateMessage,
+} from '@shared/types/network'
 
 interface KeyboardState {
   pressed: Set<string>
@@ -73,6 +92,12 @@ interface PlayerRoleBanner {
   value: HTMLSpanElement
   hint: HTMLParagraphElement
 }
+
+type FrogAnimation = 'idle' | 'jump' | 'landing'
+
+const FROG_FRAME_SIZE = 160
+const FROG_RENDER_SIZE = frogRadius * 4
+const FROG_VISUAL_Y_OFFSET = 24
 
 function mustGetElementById<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id)
@@ -154,7 +179,10 @@ function setupMouse(canvas: HTMLCanvasElement, level: LevelData): MouseSetup {
   }
 }
 
-function getDirectionalVector(mouse: MouseState, frogRenderPosition: Vector2): Vector2 {
+function getDirectionalVector(
+  mouse: MouseState,
+  frogRenderPosition: Vector2,
+): Vector2 {
   if (!mouse.isInsideCanvas) {
     return { x: 0, y: -1 }
   }
@@ -175,7 +203,8 @@ function getFrogRenderPosition(frogPosition: Vector2): Vector2 {
 function getRoomControls(): RoomControls {
   return {
     panel: mustGetElementById<HTMLDivElement>('room-controls'),
-    copyInviteButton: mustGetElementById<HTMLButtonElement>('copy-invite-ingame'),
+    copyInviteButton:
+      mustGetElementById<HTMLButtonElement>('copy-invite-ingame'),
     roomCode: mustGetElementById<HTMLSpanElement>('room-code'),
     select: mustGetElementById<HTMLSelectElement>('level-select'),
     note: mustGetElementById<HTMLParagraphElement>('level-note'),
@@ -209,7 +238,9 @@ function syncLevelOptions(
   levels: LevelSummary[],
   selectedLevelId: string,
 ): void {
-  const nextSignature = levels.map((level) => `${level.id}:${level.name}`).join('|')
+  const nextSignature = levels
+    .map((level) => `${level.id}:${level.name}`)
+    .join('|')
   if (select.dataset.optionsSignature !== nextSignature) {
     select.replaceChildren(
       ...levels.map((level) => {
@@ -267,7 +298,11 @@ function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
   return 'You are watching this run. Join with an open player slot to take a role.'
 }
 
-function drawTileLayers(tileContainer: Container, tilesetTexture: Texture, level: LevelData): void {
+function drawTileLayers(
+  tileContainer: Container,
+  tilesetTexture: Texture,
+  level: LevelData,
+): void {
   tileContainer.removeChildren()
 
   const columns = Math.floor(tilesetTexture.width / level.tileWidth)
@@ -290,7 +325,12 @@ function drawTileLayers(tileContainer: Container, tilesetTexture: Texture, level
       const sourceY = Math.floor(tileIndex / columns) * level.tileHeight
       const texture = new Texture({
         source: tilesetTexture.source,
-        frame: new Rectangle(sourceX, sourceY, level.tileWidth, level.tileHeight),
+        frame: new Rectangle(
+          sourceX,
+          sourceY,
+          level.tileWidth,
+          level.tileHeight,
+        ),
       })
       const sprite = new Sprite(texture)
 
@@ -301,6 +341,55 @@ function drawTileLayers(tileContainer: Container, tilesetTexture: Texture, level
 
     tileContainer.addChild(layerContainer)
   }
+}
+
+function createFrogTextures(frogTexture: Texture): Texture[] {
+  return Array.from(
+    { length: 4 },
+    (_, index) =>
+      new Texture({
+        source: frogTexture.source,
+        frame: new Rectangle(
+          index * FROG_FRAME_SIZE,
+          0,
+          FROG_FRAME_SIZE,
+          FROG_FRAME_SIZE,
+        ),
+      }),
+  )
+}
+
+function getFrogAnimation(gameState: GameState): FrogAnimation {
+  if (gameState.phase === 'charging') {
+    return 'idle'
+  }
+
+  if (gameState.frog.velocity.y < 0) {
+    return 'jump'
+  }
+
+  return 'landing'
+}
+
+function setFrogAnimation(
+  frog: AnimatedSprite,
+  frogTextures: Texture[],
+  nextAnimation: FrogAnimation,
+  currentAnimation: FrogAnimation,
+): FrogAnimation {
+  if (nextAnimation === currentAnimation) {
+    return currentAnimation
+  }
+
+  if (nextAnimation === 'idle') {
+    frog.textures = [frogTextures[0], frogTextures[1]]
+    frog.gotoAndPlay(0)
+    return nextAnimation
+  }
+
+  frog.textures = [frogTextures[nextAnimation === 'jump' ? 2 : 3]]
+  frog.gotoAndStop(0)
+  return nextAnimation
 }
 
 function drawLevel(
@@ -319,11 +408,14 @@ function drawLevel(
   platforms.clear()
 }
 
-export async function startGameRuntime(params: StartGameRuntimeParams): Promise<GameRuntime> {
+export async function startGameRuntime(
+  params: StartGameRuntimeParams,
+): Promise<GameRuntime> {
   const defaultLevel = getDefaultLevel()
   const powerBarX = worldWidth - 272
   const powerBarY = worldHeight - 52
   const tilesetTexture = await Assets.load<Texture>(terrainTilesetUrl)
+  const frogTexture = await Assets.load<Texture>(frogSpritesheetUrl)
   const app = new Application()
   await app.init({
     width: worldWidth,
@@ -337,7 +429,10 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   function resizeCanvasToViewport(): void {
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    const scale = Math.min(viewportWidth / worldWidth, viewportHeight / worldHeight)
+    const scale = Math.min(
+      viewportWidth / worldWidth,
+      viewportHeight / worldHeight,
+    )
 
     const cssWidth = Math.floor(worldWidth * scale)
     const cssHeight = Math.floor(worldHeight * scale)
@@ -368,9 +463,13 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   const levelPlatforms = new Graphics()
   stage.addChild(levelPlatforms)
 
-  const frog = new Graphics()
-  frog.circle(0, 0, frogRadius)
-  frog.fill(0x72be5a)
+  const frogTextures = createFrogTextures(frogTexture)
+  const frog = new AnimatedSprite([frogTextures[0], frogTextures[1]])
+  frog.anchor.set(0.5, 1)
+  frog.animationSpeed = 0.06
+  frog.width = FROG_RENDER_SIZE
+  frog.height = FROG_RENDER_SIZE
+  frog.play()
   stage.addChild(frog)
 
   const directionLine = new Graphics()
@@ -394,8 +493,15 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   let currentLevelOptions = availableLevels
   let isCreator = false
   let latestRoundRevision = 0
+  let currentFrogAnimation: FrogAnimation = 'idle'
 
-  drawLevel(levelBackground, levelTiles, tilesetTexture, levelPlatforms, currentLevel)
+  drawLevel(
+    levelBackground,
+    levelTiles,
+    tilesetTexture,
+    levelPlatforms,
+    currentLevel,
+  )
   syncLevelOptions(roomControls.select, currentLevelOptions, currentLevelId)
   roomControls.roomCode.textContent = myInviteCode
   gameStatus.level.textContent = currentLevel.name
@@ -446,7 +552,13 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
     isCreator = message.isCreator
 
     currentLevel = getLevelById(message.levelId)
-    drawLevel(levelBackground, levelTiles, tilesetTexture, levelPlatforms, currentLevel)
+    drawLevel(
+      levelBackground,
+      levelTiles,
+      tilesetTexture,
+      levelPlatforms,
+      currentLevel,
+    )
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)
     roomControls.roomCode.textContent = myInviteCode
     roomControls.select.disabled = !isCreator
@@ -454,7 +566,9 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
       ? 'You created this room. Changing level resets the frog run.'
       : 'Only the room creator can switch the level.'
 
-    const role = message.playerId ? message.gameState.roles[message.playerId] : 'spectator'
+    const role = message.playerId
+      ? message.gameState.roles[message.playerId]
+      : 'spectator'
     const roleHint = getRoleHint(role, message.gameState)
     gameStatus.players.textContent = `${message.connectedCount}/3`
     gameStatus.player.textContent = message.playerId ?? 'spectator'
@@ -463,8 +577,12 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
     gameStatus.roles.textContent = `P1 ${message.gameState.roles.player1} | P2 ${message.gameState.roles.player2} | P3 ${message.gameState.roles.player3}`
     gameStatus.phase.textContent = message.gameState.phase
     gameStatus.jumps.textContent = String(message.gameState.jumpCount)
-    gameStatus.power.textContent = String(Math.round(message.gameState.jumpPower))
-    gameStatus.midAir.textContent = message.gameState.midAirJumpUsed ? 'used' : 'ready'
+    gameStatus.power.textContent = String(
+      Math.round(message.gameState.jumpPower),
+    )
+    gameStatus.midAir.textContent = message.gameState.midAirJumpUsed
+      ? 'used'
+      : 'ready'
     gameStatus.controls.textContent = roleHint
     playerRoleBanner.value.textContent = getRoleDisplayName(role)
     playerRoleBanner.hint.textContent = roleHint
@@ -487,7 +605,10 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
 
     if (myRole === 'direction' && gameState.phase === 'charging') {
       if (now - lastAimSendAt >= 50) {
-        const directionInput = getDirectionalVector(mouse.state, frogRenderPosition)
+        const directionInput = getDirectionalVector(
+          mouse.state,
+          frogRenderPosition,
+        )
         sendInput({
           type: 'aim',
           direction: directionInput,
@@ -519,21 +640,37 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
       })
     }
 
-    frog.position.set(frogRenderPosition.x, frogRenderPosition.y)
+    frog.position.set(
+      gameState.frog.position.x,
+      gameState.frog.position.y + FROG_VISUAL_Y_OFFSET,
+    )
+    currentFrogAnimation = setFrogAnimation(
+      frog,
+      frogTextures,
+      getFrogAnimation(gameState),
+      currentFrogAnimation,
+    )
 
     directionLine.clear()
     directionLine.moveTo(frogRenderPosition.x, frogRenderPosition.y)
     directionLine.lineTo(
-      frogRenderPosition.x + (gameState.jumpDirection.x * 48),
-      frogRenderPosition.y + (gameState.jumpDirection.y * 48),
+      frogRenderPosition.x + gameState.jumpDirection.x * 48,
+      frogRenderPosition.y + gameState.jumpDirection.y * 48,
     )
     directionLine.stroke({ color: 0x101911, width: 3 })
 
-    const powerRatio = (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
+    const powerRatio =
+      (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
     const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
 
     powerBarFill.clear()
-    powerBarFill.roundRect(powerBarX + 2, powerBarY + 2, 216 * clampedPowerRatio, 16, 8)
+    powerBarFill.roundRect(
+      powerBarX + 2,
+      powerBarY + 2,
+      216 * clampedPowerRatio,
+      16,
+      8,
+    )
     powerBarFill.fill(0x7bdc67)
 
     keyboard.state.justPressed.clear()
