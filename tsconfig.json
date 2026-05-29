@@ -33,5 +33,8 @@
     "vite.config.ts",
     "vitest.config.ts",
     "eslint.config.js"
+  ],
+  "exclude": [
+    "src/shared/levels/tiled/*.tsx"
   ]
 }

@@ -1,6 +1,7 @@
 import type { Room } from 'colyseus.js'
-import { Application, Container, Graphics } from 'pixi.js'
+import { Application, Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js'
 
+import terrainTilesetUrl from '@client/assets/tiles/full.png'
 import {
   frogRadius,
   maxJumpPower,
@@ -266,23 +267,63 @@ function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
   return 'You are watching this run. Join with an open player slot to take a role.'
 }
 
-function drawLevel(background: Graphics, platforms: Graphics, level: LevelData): void {
+function drawTileLayers(tileContainer: Container, tilesetTexture: Texture, level: LevelData): void {
+  tileContainer.removeChildren()
+
+  const columns = Math.floor(tilesetTexture.width / level.tileWidth)
+  if (columns <= 0) {
+    return
+  }
+
+  for (const layer of level.tileLayers) {
+    const layerContainer = new Container()
+    layerContainer.alpha = layer.opacity
+
+    for (let index = 0; index < layer.data.length; index += 1) {
+      const gid = layer.data[index] & 0x1fffffff
+      if (gid <= 0) {
+        continue
+      }
+
+      const tileIndex = gid - 1
+      const sourceX = (tileIndex % columns) * level.tileWidth
+      const sourceY = Math.floor(tileIndex / columns) * level.tileHeight
+      const texture = new Texture({
+        source: tilesetTexture.source,
+        frame: new Rectangle(sourceX, sourceY, level.tileWidth, level.tileHeight),
+      })
+      const sprite = new Sprite(texture)
+
+      sprite.x = (index % layer.width) * level.tileWidth
+      sprite.y = Math.floor(index / layer.width) * level.tileHeight
+      layerContainer.addChild(sprite)
+    }
+
+    tileContainer.addChild(layerContainer)
+  }
+}
+
+function drawLevel(
+  background: Graphics,
+  tiles: Container,
+  tilesetTexture: Texture,
+  platforms: Graphics,
+  level: LevelData,
+): void {
   background.clear()
   background.rect(0, 0, level.worldWidth, level.worldHeight)
   background.fill(level.backgroundColor)
 
+  drawTileLayers(tiles, tilesetTexture, level)
+
   platforms.clear()
-  for (const platform of level.platforms) {
-    const radius = platform.height >= 24 ? 12 : 8
-    platforms.roundRect(platform.x, platform.y, platform.width, platform.height, radius)
-    platforms.fill(level.platformColor)
-  }
 }
 
 export async function startGameRuntime(params: StartGameRuntimeParams): Promise<GameRuntime> {
   const defaultLevel = getDefaultLevel()
   const powerBarX = worldWidth - 272
   const powerBarY = worldHeight - 52
+  const tilesetTexture = await Assets.load<Texture>(terrainTilesetUrl)
   const app = new Application()
   await app.init({
     width: worldWidth,
@@ -321,6 +362,9 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   const levelBackground = new Graphics()
   stage.addChild(levelBackground)
 
+  const levelTiles = new Container()
+  stage.addChild(levelTiles)
+
   const levelPlatforms = new Graphics()
   stage.addChild(levelPlatforms)
 
@@ -351,7 +395,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   let isCreator = false
   let latestRoundRevision = 0
 
-  drawLevel(levelBackground, levelPlatforms, currentLevel)
+  drawLevel(levelBackground, levelTiles, tilesetTexture, levelPlatforms, currentLevel)
   syncLevelOptions(roomControls.select, currentLevelOptions, currentLevelId)
   roomControls.roomCode.textContent = myInviteCode
   gameStatus.level.textContent = currentLevel.name
@@ -402,7 +446,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
     isCreator = message.isCreator
 
     currentLevel = getLevelById(message.levelId)
-    drawLevel(levelBackground, levelPlatforms, currentLevel)
+    drawLevel(levelBackground, levelTiles, tilesetTexture, levelPlatforms, currentLevel)
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)
     roomControls.roomCode.textContent = myInviteCode
     roomControls.select.disabled = !isCreator

@@ -1,4 +1,13 @@
-import type { LevelData, Platform, TiledMap, TiledObject, TiledProperty } from '@shared/types/level'
+import type {
+  LevelData,
+  Platform,
+  TiledLayer,
+  TiledMap,
+  TiledObject,
+  TiledObjectLayer,
+  TiledProperty,
+  TiledTileLayer,
+} from '@shared/types/level'
 
 function getProperty<T extends TiledProperty['value']>(
   properties: TiledProperty[] | undefined,
@@ -36,6 +45,29 @@ function parsePlatform(object: TiledObject): Platform | null {
   }
 }
 
+function isObjectLayer(layer: TiledLayer): layer is TiledObjectLayer {
+  return layer.type === 'objectgroup' && 'objects' in layer && Array.isArray(layer.objects)
+}
+
+function isTileLayer(layer: TiledLayer): layer is TiledTileLayer {
+  return layer.type === 'tilelayer' && 'data' in layer
+}
+
+function parseTileLayerData(layer: TiledTileLayer): number[] {
+  if (Array.isArray(layer.data)) {
+    return layer.data
+  }
+
+  if (typeof layer.data === 'string' && layer.encoding === 'csv' && !layer.compression) {
+    return layer.data
+      .split(',')
+      .map((value) => Number.parseInt(value.trim(), 10))
+      .filter((value) => Number.isFinite(value))
+  }
+
+  return []
+}
+
 export function parseTiledLevel(id: string, map: TiledMap): LevelData {
   const displayNameProperty = getProperty(map.properties, 'displayName', 'string')
   const backgroundColorProperty = getProperty(map.properties, 'backgroundColor', 'string')
@@ -50,12 +82,15 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
     0x2e5236,
   )
 
-  const platformsLayer = map.layers.find((layer) => layer.name === 'platforms')
+  const platformsLayer = map.layers.find(
+    (layer): layer is TiledObjectLayer => layer.name === 'platforms' && isObjectLayer(layer),
+  )
   if (!platformsLayer) {
     throw new Error(`Tiled level ${id} is missing a platforms layer`)
   }
 
   const spawnObject = map.layers
+    .filter(isObjectLayer)
     .flatMap((layer) => layer.objects)
     .find((object) => object.name === 'spawn' || object.type === 'spawn')
 
@@ -72,16 +107,31 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
     throw new Error(`Tiled level ${id} must contain at least one platform`)
   }
 
+  const tileLayers = map.layers
+    .filter(isTileLayer)
+    .map((layer) => ({
+      name: layer.name,
+      width: layer.width,
+      height: layer.height,
+      data: parseTileLayerData(layer),
+      opacity: layer.opacity ?? 1,
+      visible: layer.visible ?? true,
+    }))
+    .filter((layer) => layer.visible && layer.data.length > 0)
+
   return {
     id,
     name: displayName,
     worldWidth: map.width * map.tilewidth,
     worldHeight: map.height * map.tileheight,
+    tileWidth: map.tilewidth,
+    tileHeight: map.tileheight,
     spawn: {
       x: spawnObject.x,
       y: spawnObject.y,
     },
     platforms,
+    tileLayers,
     backgroundColor,
     platformColor,
   }
