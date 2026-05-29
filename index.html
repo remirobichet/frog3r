@@ -7,6 +7,13 @@
     <style>
       :root {
         color-scheme: dark;
+        --font-display: Georgia, "Times New Roman", serif;
+        --font-body: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        --surface-strong: rgba(9, 23, 18, 0.9);
+        --surface-line: rgba(207, 242, 194, 0.18);
+        --text-strong: #f5f9e7;
+        --text-soft: rgba(225, 241, 211, 0.78);
       }
 
       * {
@@ -15,29 +22,35 @@
 
       body {
         margin: 0;
-        min-height: 100vh;
-        font-family: Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        min-height: 100dvh;
+        font-family: var(--font-body);
         background:
-          radial-gradient(
-            circle at top left,
-            rgba(62, 107, 69, 0.28),
-            transparent 34%
-          ),
-          radial-gradient(
-            circle at right center,
-            rgba(40, 78, 66, 0.22),
-            transparent 28%
-          ),
+          radial-gradient(circle at 12% 8%, rgba(111, 155, 83, 0.25), transparent 30%),
+          radial-gradient(circle at 86% 48%, rgba(56, 112, 94, 0.22), transparent 32%),
           linear-gradient(180deg, #13241d 0%, #0b1411 100%);
-        color: #eef6e4;
+        color: var(--text-strong);
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        content: "";
+        opacity: 0.11;
+        background-image:
+          radial-gradient(circle at 20% 30%, #ffffff 0 1px, transparent 1px),
+          radial-gradient(circle at 70% 80%, #ffffff 0 1px, transparent 1px);
+        background-size: 44px 44px, 67px 67px;
+        mix-blend-mode: overlay;
       }
 
       #app {
-        min-height: 100vh;
+        min-height: 100dvh;
       }
 
       #lobby {
-        min-height: 100vh;
+        min-height: 100dvh;
         display: grid;
         place-items: center;
         padding: 16px;
@@ -45,32 +58,29 @@
 
       #lobby-panel {
         width: min(100%, 472px);
-        padding: 28px;
-        border-radius: 24px;
-        background: linear-gradient(
-          180deg,
-          rgba(12, 31, 24, 0.94),
-          rgba(8, 20, 17, 0.94)
-        );
-        border: 1px solid rgba(201, 234, 188, 0.18);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+        padding: 30px;
+        border: 1px solid var(--surface-line);
+        border-radius: 28px;
+        background: linear-gradient(180deg, rgba(12, 31, 24, 0.95), rgba(8, 20, 17, 0.95));
+        box-shadow: 0 28px 70px rgba(2, 11, 8, 0.46);
         backdrop-filter: blur(14px);
       }
 
       #lobby-panel h1 {
         margin: 0 0 10px;
-        color: #f2f9e9;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: clamp(2.25rem, 6vw, 3rem);
-        line-height: 0.98;
-        letter-spacing: -0.04em;
+        color: var(--text-strong);
+        font-family: var(--font-display);
+        font-size: clamp(2.5rem, 7vw, 3.55rem);
+        line-height: 0.92;
+        letter-spacing: -0.055em;
         text-wrap: balance;
       }
 
       #lobby-subtitle {
         max-width: 34ch;
-        margin: 0 0 22px;
-        color: rgba(231, 243, 220, 0.82);
+        margin: 0 0 24px;
+        color: var(--text-soft);
+        font-size: 1rem;
         line-height: 1.55;
         text-wrap: pretty;
       }
@@ -86,16 +96,15 @@
         width: 100%;
         min-width: 0;
         padding: 13px 14px;
-        border-radius: 14px;
         border: 1px solid rgba(186, 238, 171, 0.2);
+        border-radius: 14px;
+        outline: none;
         background: rgba(243, 252, 233, 0.07);
         color: #f3fbe8;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family: var(--font-mono);
         font-size: 0.94rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        outline: none;
         transition:
           border-color 180ms ease,
           background 180ms ease,
@@ -110,15 +119,14 @@
 
       .lobby-action {
         padding: 12px 14px;
-        border-radius: 14px;
         border: 1px solid rgba(208, 241, 198, 0.18);
-        background: rgba(29, 63, 51, 0.92);
+        border-radius: 14px;
+        background: rgba(30, 70, 52, 0.92);
         color: #eff7df;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.88rem;
-        font-weight: 600;
-        letter-spacing: 0.03em;
+        font-family: var(--font-body);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
         cursor: pointer;
         transition:
           transform 180ms ease,
@@ -129,13 +137,13 @@
 
       .lobby-action:hover:not(:disabled) {
         transform: translateY(-1px);
-        background: rgba(42, 84, 68, 0.96);
+        background: rgba(43, 91, 68, 0.96);
         border-color: rgba(208, 241, 198, 0.3);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+        box-shadow: 0 12px 24px rgba(2, 11, 8, 0.32);
       }
 
       .lobby-action:active:not(:disabled) {
-        transform: translateY(0);
+        transform: translateY(1px) scale(0.99);
       }
 
       .lobby-action:focus-visible {
@@ -150,9 +158,9 @@
 
       .lobby-action.compact {
         width: auto;
-        min-width: 132px;
+        min-width: 112px;
         padding-inline: 12px;
-        font-size: 0.82rem;
+        font-size: 0.84rem;
       }
 
       .action-row {
@@ -174,17 +182,33 @@
       }
 
       #game-root {
-        min-height: 100vh;
+        position: relative;
+        min-height: 100dvh;
         display: none;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        background: #0b1411;
-        position: relative;
+        isolation: isolate;
+        background:
+          radial-gradient(circle at 50% 105%, rgba(83, 124, 66, 0.24), transparent 36%),
+          linear-gradient(180deg, #101a17 0%, #07100e 100%);
+      }
+
+      #game-root::after {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        content: "";
+        background:
+          linear-gradient(90deg, rgba(4, 9, 7, 0.34), transparent 18%, transparent 82%, rgba(4, 9, 7, 0.34)),
+          linear-gradient(180deg, rgba(4, 9, 7, 0.16), transparent 28%, rgba(4, 9, 7, 0.22));
       }
 
       #game-root canvas {
         display: block;
+        z-index: 0;
+        box-shadow: 0 0 0 1px rgba(207, 242, 194, 0.08);
       }
 
       #copy-invite-ingame {
@@ -192,98 +216,88 @@
         min-width: 0;
       }
 
+      #room-controls,
+      #player-hud,
+      #game-status {
+        z-index: 2;
+        border: 1px solid var(--surface-line);
+        background: linear-gradient(180deg, var(--surface-strong), rgba(8, 18, 15, 0.76));
+        box-shadow: 0 22px 58px rgba(2, 11, 8, 0.36);
+        backdrop-filter: blur(16px);
+      }
+
       #room-controls {
         position: absolute;
         top: 16px;
         left: 16px;
-        z-index: 2;
-        width: min(320px, calc(100vw - 32px));
-        padding: 14px;
+        width: min(274px, calc(100vw - 32px));
+        padding: 13px;
         border-radius: 18px;
-        border: 1px solid rgba(201, 234, 188, 0.18);
-        background: linear-gradient(
-          180deg,
-          rgba(11, 26, 21, 0.88),
-          rgba(10, 21, 18, 0.82)
-        );
-        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(14px);
       }
 
-      #player-role-banner {
+      #player-hud {
         position: absolute;
-        top: 16px;
         left: 50%;
-        z-index: 2;
+        top: 16px;
+        width: min(280px, calc(100vw - 32px));
+        padding: 8px 12px 9px;
+        border-radius: 16px;
         transform: translateX(-50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        width: min(280px, calc(100vw - 160px));
-        padding: 12px 18px;
-        border-radius: 20px;
-        border: 1px solid rgba(201, 234, 188, 0.18);
-        background: linear-gradient(
-          180deg,
-          rgba(11, 26, 21, 0.9),
-          rgba(10, 21, 18, 0.84)
-        );
-        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(14px);
+        text-align: center;
         pointer-events: none;
       }
 
       .player-role-label {
+        display: block;
         color: rgba(222, 241, 209, 0.72);
-        font-size: 0.68rem;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: 0.16em;
+        font-family: var(--font-mono);
+        font-size: 0.58rem;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
       }
 
       .player-role-value {
-        color: #f2f9e9;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: clamp(1.65rem, 3.6vw, 2.4rem);
+        display: block;
+        margin-top: 2px;
+        color: var(--text-strong);
+        font-family: var(--font-display);
+        font-size: clamp(1.12rem, 2.4vw, 1.55rem);
         line-height: 0.95;
         letter-spacing: -0.04em;
         text-transform: capitalize;
         text-wrap: balance;
       }
 
-      .room-heading {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
+      #player-control-hint {
+        max-width: 32ch;
+        margin: 4px auto 0;
+        color: rgba(232, 244, 219, 0.84);
+        font-size: 0.72rem;
+        line-height: 1.25;
+        text-wrap: pretty;
       }
 
       .room-label,
       .level-label {
         display: block;
         color: rgba(222, 241, 209, 0.72);
-        font-size: 0.72rem;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: 0.12em;
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
       }
 
       .room-value {
         display: inline-flex;
         align-items: center;
-        min-height: 42px;
-        padding: 0 14px;
-        border-radius: 14px;
-        background: rgba(243, 252, 233, 0.08);
+        min-height: 38px;
+        padding: 0 12px;
         border: 1px solid rgba(186, 238, 171, 0.16);
+        border-radius: 13px;
+        background: rgba(243, 252, 233, 0.08);
         color: #f3fbe8;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.96rem;
+        font-family: var(--font-mono);
+        font-size: 0.92rem;
         font-variant-numeric: tabular-nums;
         letter-spacing: 0.14em;
       }
@@ -291,25 +305,26 @@
       .room-copy-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
-        margin-bottom: 14px;
+        margin: 7px 0 12px;
       }
 
       .room-copy-row .compact {
-        min-width: 108px;
+        min-width: 96px;
       }
 
       .level-select {
         width: 100%;
+        margin-top: 7px;
         padding: 11px 12px;
-        border-radius: 14px;
         border: 1px solid rgba(186, 238, 171, 0.16);
+        border-radius: 14px;
+        outline: none;
         background: rgba(243, 252, 233, 0.08);
         color: #f3fbe8;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        outline: none;
+        font-family: var(--font-body);
+        font-weight: 700;
         transition:
           border-color 180ms ease,
           background 180ms ease,
@@ -318,12 +333,13 @@
 
       .level-select:focus-visible {
         border-color: rgba(188, 232, 175, 0.45);
+        background: rgba(243, 252, 233, 0.11);
         box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
       }
 
       .level-note {
-        margin: 10px 0 0;
-        color: rgba(216, 237, 207, 0.82);
+        margin: 9px 0 0;
+        color: rgba(216, 237, 207, 0.76);
         font-size: 12px;
         line-height: 1.4;
         text-wrap: pretty;
@@ -333,26 +349,29 @@
         position: absolute;
         top: 16px;
         right: 16px;
-        z-index: 2;
-        width: min(312px, calc(100vw - 32px));
-        padding: 12px;
+        width: min(316px, calc(100vw - 32px));
         border-radius: 18px;
-        border: 1px solid rgba(201, 234, 188, 0.18);
-        background: linear-gradient(
-          180deg,
-          rgba(11, 26, 21, 0.88),
-          rgba(10, 21, 18, 0.82)
-        );
-        box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(14px);
+        color: var(--text-strong);
       }
 
-      .status-title {
-        margin-bottom: 10px;
-        color: #f2f9e9;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 1.08rem;
-        letter-spacing: -0.02em;
+      #game-status summary {
+        padding: 11px 13px;
+        color: rgba(232, 244, 219, 0.9);
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+        list-style-position: inside;
+      }
+
+      #game-status summary:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
+      }
+
+      .status-panel-body {
+        padding: 0 12px 12px;
       }
 
       .status-grid {
@@ -363,9 +382,9 @@
 
       .status-item {
         padding: 9px 10px;
+        border: 1px solid rgba(186, 238, 171, 0.12);
         border-radius: 12px;
         background: rgba(243, 252, 233, 0.08);
-        border: 1px solid rgba(186, 238, 171, 0.12);
       }
 
       .status-item-wide {
@@ -374,16 +393,15 @@
 
       .status-item-large {
         margin-top: 8px;
-        min-height: 82px;
+        min-height: 76px;
       }
 
       .status-label {
         display: block;
         margin-bottom: 5px;
-        color: rgba(222, 241, 209, 0.72);
-        font-size: 0.68rem;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: rgba(222, 241, 209, 0.68);
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
         letter-spacing: 0.12em;
         text-transform: uppercase;
       }
@@ -391,15 +409,14 @@
       .status-value {
         display: block;
         color: #f3fbe8;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.82rem;
-        line-height: 1.35;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
         font-variant-numeric: tabular-nums;
+        line-height: 1.35;
         text-wrap: pretty;
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 760px) {
         #lobby {
           padding: 12px;
         }
@@ -423,20 +440,51 @@
         #room-controls {
           top: 12px;
           left: 12px;
-          width: min(320px, calc(100vw - 24px));
-        }
-
-        #player-role-banner {
-          top: 12px;
-          width: min(240px, calc(100vw - 176px));
-          padding: 10px 14px;
+          width: min(268px, calc(100vw - 24px));
         }
 
         #game-status {
-          top: auto;
+          top: 12px;
           right: 12px;
-          bottom: 12px;
-          width: min(312px, calc(100vw - 24px));
+          width: min(196px, calc(100vw - 304px));
+        }
+
+        #game-status[open] {
+          width: min(316px, calc(100vw - 24px));
+        }
+
+        #player-hud {
+          top: 12px;
+          width: min(230px, calc(100vw - 304px));
+          padding: 7px 10px 8px;
+          border-radius: 14px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        #room-controls,
+        #game-status {
+          position: absolute;
+          width: calc(50vw - 18px);
+        }
+
+        #game-status summary {
+          padding-inline: 10px;
+          font-size: 0.62rem;
+          letter-spacing: 0.1em;
+        }
+
+        #game-status[open] {
+          width: calc(100vw - 24px);
+        }
+
+        #player-hud {
+          top: 84px;
+          width: calc(100vw - 24px);
+        }
+
+        .level-note {
+          display: none;
         }
       }
     </style>
@@ -447,7 +495,7 @@
         <div id="lobby-panel">
           <h1>Frog3r</h1>
           <p id="lobby-subtitle">
-            Create a lobby or join with an invite code before entering the game.
+            Share one frog. Split the jump. Rotate roles after every landing.
           </p>
           <div class="invite-row">
             <input
@@ -478,10 +526,8 @@
       </section>
 
       <div id="game-root">
-        <aside id="room-controls">
-          <div class="room-heading">
-            <span class="room-label">Room</span>
-          </div>
+        <aside id="room-controls" aria-label="Room controls">
+          <span class="room-label">Room</span>
           <div class="room-copy-row">
             <span id="room-code" class="room-value">------</span>
             <button
@@ -499,59 +545,61 @@
           </p>
         </aside>
 
-        <div id="player-role-banner">
-          <span class="player-role-label">Your role</span>
-          <span id="player-role-value" class="player-role-value"
-            >Spectator</span
-          >
-        </div>
+        <section id="player-hud" aria-live="polite">
+          <span class="player-role-label">Now you handle</span>
+          <span id="player-role-value" class="player-role-value">Spectator</span>
+          <p id="player-control-hint">Waiting for a player role.</p>
+        </section>
 
-        <aside id="game-status">
-          <div class="status-grid">
-            <div class="status-item">
-              <span class="status-label">Players</span
-              ><span id="status-players" class="status-value">-</span>
+        <details id="game-status">
+          <summary>Match details</summary>
+          <div class="status-panel-body">
+            <div class="status-grid">
+              <div class="status-item">
+                <span class="status-label">Players</span>
+                <span id="status-players" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">You</span>
+                <span id="status-player" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Creator</span>
+                <span id="status-creator" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Level</span>
+                <span id="status-level" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Phase</span>
+                <span id="status-phase" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Jumps</span>
+                <span id="status-jumps" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Power</span>
+                <span id="status-power" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Mid-air</span>
+                <span id="status-midair" class="status-value">-</span>
+              </div>
             </div>
-            <div class="status-item">
-              <span class="status-label">You</span
-              ><span id="status-player" class="status-value">-</span>
+            <div class="status-item status-item-wide">
+              <span class="status-label">Roles</span>
+              <span id="status-roles" class="status-value">-</span>
             </div>
-            <div class="status-item">
-              <span class="status-label">Creator</span
-              ><span id="status-creator" class="status-value">-</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Level</span
-              ><span id="status-level" class="status-value">-</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Phase</span
-              ><span id="status-phase" class="status-value">-</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Jumps</span
-              ><span id="status-jumps" class="status-value">-</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Power</span
-              ><span id="status-power" class="status-value">-</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">Mid-air</span
-              ><span id="status-midair" class="status-value">-</span>
+            <div class="status-item status-item-large">
+              <span class="status-label">Controls</span>
+              <span id="status-controls" class="status-value">
+                Your visible hint changes with your current role.
+              </span>
             </div>
           </div>
-          <div class="status-item status-item-wide">
-            <span class="status-label">Roles</span
-            ><span id="status-roles" class="status-value">-</span>
-          </div>
-          <div class="status-item status-item-large">
-            <span class="status-label">Controls</span
-            ><span id="status-controls" class="status-value"
-              >Mouse aim, hold SPACE to charge, SPACE for mid jump.</span
-            >
-          </div>
-        </aside>
+        </details>
       </div>
     </div>
     <script type="module" src="/src/client/main.ts"></script>

@@ -55,7 +55,7 @@ interface RoomControls {
 }
 
 interface GameStatusPanel {
-  panel: HTMLDivElement
+  panel: HTMLDetailsElement
   players: HTMLSpanElement
   player: HTMLSpanElement
   creator: HTMLSpanElement
@@ -65,10 +65,12 @@ interface GameStatusPanel {
   jumps: HTMLSpanElement
   power: HTMLSpanElement
   midAir: HTMLSpanElement
+  controls: HTMLSpanElement
 }
 
 interface PlayerRoleBanner {
   value: HTMLSpanElement
+  hint: HTMLParagraphElement
 }
 
 function mustGetElementById<T extends HTMLElement>(id: string): T {
@@ -180,7 +182,7 @@ function getRoomControls(): RoomControls {
 }
 function getGameStatusPanel(): GameStatusPanel {
   return {
-    panel: mustGetElementById<HTMLDivElement>('game-status'),
+    panel: mustGetElementById<HTMLDetailsElement>('game-status'),
     players: mustGetElementById<HTMLSpanElement>('status-players'),
     player: mustGetElementById<HTMLSpanElement>('status-player'),
     creator: mustGetElementById<HTMLSpanElement>('status-creator'),
@@ -190,12 +192,14 @@ function getGameStatusPanel(): GameStatusPanel {
     jumps: mustGetElementById<HTMLSpanElement>('status-jumps'),
     power: mustGetElementById<HTMLSpanElement>('status-power'),
     midAir: mustGetElementById<HTMLSpanElement>('status-midair'),
+    controls: mustGetElementById<HTMLSpanElement>('status-controls'),
   }
 }
 
 function getPlayerRoleBanner(): PlayerRoleBanner {
   return {
     value: mustGetElementById<HTMLSpanElement>('player-role-value'),
+    hint: mustGetElementById<HTMLParagraphElement>('player-control-hint'),
   }
 }
 
@@ -220,6 +224,46 @@ function syncLevelOptions(
   if (select.value !== selectedLevelId) {
     select.value = selectedLevelId
   }
+}
+
+function getRoleDisplayName(role: PlayerRole | 'spectator'): string {
+  if (role === 'direction') {
+    return 'Aim'
+  }
+
+  if (role === 'power') {
+    return 'Charge'
+  }
+
+  if (role === 'midJump') {
+    return 'Mid-jump'
+  }
+
+  return 'Spectator'
+}
+
+function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
+  if (role === 'direction') {
+    return state.phase === 'charging'
+      ? 'Guide the arc with your cursor before your teammate releases.'
+      : 'The frog is airborne. Watch the landing and prepare for the next aim.'
+  }
+
+  if (role === 'power') {
+    return state.phase === 'charging'
+      ? 'Hold Space to build power, then release to launch.'
+      : 'Launch committed. Wait for the landing to receive your next role.'
+  }
+
+  if (role === 'midJump') {
+    if (state.phase === 'airborne' && !state.midAirJumpUsed) {
+      return 'Press Space at the right moment for the second jump.'
+    }
+
+    return 'Save your timing for the airborne second jump.'
+  }
+
+  return 'You are watching this run. Join with an open player slot to take a role.'
 }
 
 function drawLevel(background: Graphics, platforms: Graphics, level: LevelData): void {
@@ -312,6 +356,7 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
   roomControls.roomCode.textContent = myInviteCode
   gameStatus.level.textContent = currentLevel.name
   playerRoleBanner.value.textContent = 'Spectator'
+  playerRoleBanner.hint.textContent = 'Waiting for a player role.'
 
   function getMyRole(state: GameState): PlayerRole | 'spectator' {
     if (!myPlayerId) {
@@ -365,7 +410,8 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
       ? 'You created this room. Changing level resets the frog run.'
       : 'Only the room creator can switch the level.'
 
-    const roleText = message.playerId ? message.gameState.roles[message.playerId] : 'spectator'
+    const role = message.playerId ? message.gameState.roles[message.playerId] : 'spectator'
+    const roleHint = getRoleHint(role, message.gameState)
     gameStatus.players.textContent = `${message.connectedCount}/3`
     gameStatus.player.textContent = message.playerId ?? 'spectator'
     gameStatus.creator.textContent = isCreator ? 'yes' : 'no'
@@ -375,7 +421,9 @@ export async function startGameRuntime(params: StartGameRuntimeParams): Promise<
     gameStatus.jumps.textContent = String(message.gameState.jumpCount)
     gameStatus.power.textContent = String(Math.round(message.gameState.jumpPower))
     gameStatus.midAir.textContent = message.gameState.midAirJumpUsed ? 'used' : 'ready'
-    playerRoleBanner.value.textContent = roleText
+    gameStatus.controls.textContent = roleHint
+    playerRoleBanner.value.textContent = getRoleDisplayName(role)
+    playerRoleBanner.hint.textContent = roleHint
   })
 
   params.room.onLeave(() => {
