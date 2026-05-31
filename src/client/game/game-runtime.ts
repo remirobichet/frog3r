@@ -11,6 +11,8 @@ import {
 } from 'pixi.js'
 
 import frogSpritesheetUrl from '@client/assets/frog/frog.png'
+import aimHudUrl from '@client/assets/hud/aim.png'
+import powerbarHudUrl from '@client/assets/hud/powerbar.png'
 import terrainTilesetUrl from '@client/assets/tiles/full.png'
 import {
   frogRadius,
@@ -98,6 +100,16 @@ type FrogAnimation = 'idle' | 'jump' | 'landing'
 const FROG_FRAME_SIZE = 160
 const FROG_RENDER_SIZE = frogRadius * 4
 const FROG_VISUAL_Y_OFFSET = 24
+const AIM_RENDER_SIZE = 96
+const POWER_BAR_FRAME_WIDTH = 420
+const POWER_BAR_FRAME_HEIGHT = 84
+const POWER_BAR_BOTTOM_OFFSET = 28
+const POWER_BAR_BACKING_PADDING_X = 12
+const POWER_BAR_BACKING_PADDING_Y = 10
+const POWER_BAR_FILL_X_OFFSET = 39
+const POWER_BAR_FILL_Y_OFFSET = 58
+const POWER_BAR_FILL_WIDTH = 342
+const POWER_BAR_FILL_HEIGHT = 28
 
 function mustGetElementById<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id)
@@ -412,10 +424,13 @@ export async function startGameRuntime(
   params: StartGameRuntimeParams,
 ): Promise<GameRuntime> {
   const defaultLevel = getDefaultLevel()
-  const powerBarX = worldWidth - 272
-  const powerBarY = worldHeight - 52
+  const powerBarX = (worldWidth - POWER_BAR_FRAME_WIDTH) / 2
+  const powerBarY =
+    worldHeight - POWER_BAR_FRAME_HEIGHT - POWER_BAR_BOTTOM_OFFSET
   const tilesetTexture = await Assets.load<Texture>(terrainTilesetUrl)
   const frogTexture = await Assets.load<Texture>(frogSpritesheetUrl)
+  const aimTexture = await Assets.load<Texture>(aimHudUrl)
+  const powerbarTexture = await Assets.load<Texture>(powerbarHudUrl)
   const app = new Application()
   await app.init({
     width: worldWidth,
@@ -463,6 +478,12 @@ export async function startGameRuntime(
   const levelPlatforms = new Graphics()
   stage.addChild(levelPlatforms)
 
+  const aim = new Sprite(aimTexture)
+  aim.anchor.set(0.08, 0.5)
+  aim.width = AIM_RENDER_SIZE
+  aim.height = AIM_RENDER_SIZE
+  stage.addChild(aim)
+
   const frogTextures = createFrogTextures(frogTexture)
   const frog = new AnimatedSprite([frogTextures[0], frogTextures[1]])
   frog.anchor.set(0.5, 1)
@@ -472,16 +493,25 @@ export async function startGameRuntime(
   frog.play()
   stage.addChild(frog)
 
-  const directionLine = new Graphics()
-  stage.addChild(directionLine)
-
-  const powerBarBg = new Graphics()
-  powerBarBg.roundRect(powerBarX, powerBarY, 220, 20, 10)
-  powerBarBg.fill(0x0f1a13)
-  stage.addChild(powerBarBg)
+  const powerBarBacking = new Graphics()
+  powerBarBacking.roundRect(
+    powerBarX - POWER_BAR_BACKING_PADDING_X,
+    powerBarY - POWER_BAR_BACKING_PADDING_Y,
+    POWER_BAR_FRAME_WIDTH + POWER_BAR_BACKING_PADDING_X * 2,
+    POWER_BAR_FRAME_HEIGHT + POWER_BAR_BACKING_PADDING_Y * 2,
+    24,
+  )
+  powerBarBacking.fill({ color: 0x06100c, alpha: 0.72 })
+  stage.addChild(powerBarBacking)
 
   const powerBarFill = new Graphics()
   stage.addChild(powerBarFill)
+
+  const powerBarFrame = new Sprite(powerbarTexture)
+  powerBarFrame.position.set(powerBarX, powerBarY)
+  powerBarFrame.width = POWER_BAR_FRAME_WIDTH
+  powerBarFrame.height = POWER_BAR_FRAME_HEIGHT
+  stage.addChild(powerBarFrame)
 
   let latestState: GameState | null = null
   let myPlayerId: PlayerId | null = null
@@ -651,13 +681,12 @@ export async function startGameRuntime(
       currentFrogAnimation,
     )
 
-    directionLine.clear()
-    directionLine.moveTo(frogRenderPosition.x, frogRenderPosition.y)
-    directionLine.lineTo(
-      frogRenderPosition.x + gameState.jumpDirection.x * 48,
-      frogRenderPosition.y + gameState.jumpDirection.y * 48,
+    aim.position.set(frogRenderPosition.x, frogRenderPosition.y)
+    aim.rotation = Math.atan2(
+      gameState.jumpDirection.y,
+      gameState.jumpDirection.x,
     )
-    directionLine.stroke({ color: 0x101911, width: 3 })
+    aim.visible = gameState.phase === 'charging'
 
     const powerRatio =
       (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
@@ -665,11 +694,11 @@ export async function startGameRuntime(
 
     powerBarFill.clear()
     powerBarFill.roundRect(
-      powerBarX + 2,
-      powerBarY + 2,
-      216 * clampedPowerRatio,
-      16,
-      8,
+      powerBarX + POWER_BAR_FILL_X_OFFSET,
+      powerBarY + POWER_BAR_FILL_Y_OFFSET,
+      POWER_BAR_FILL_WIDTH * clampedPowerRatio,
+      POWER_BAR_FILL_HEIGHT,
+      POWER_BAR_FILL_HEIGHT / 2,
     )
     powerBarFill.fill(0x7bdc67)
 
