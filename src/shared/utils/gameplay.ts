@@ -11,6 +11,14 @@ import {
 import type { LevelData, Platform } from '@shared/types/level'
 import type { GameState, PlayerId, PlayerRole, Vector2 } from '@shared/types/game-state'
 
+interface CollisionResult {
+  position: Vector2
+  velocity: Vector2
+  landingHeight: number | null
+}
+
+const frogCollisionHeight = frogRadius * 2
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -51,6 +59,10 @@ function overlapsPlatform(platform: Platform, x: number): boolean {
   return (x + frogRadius) > platform.x && (x - frogRadius) < (platform.x + platform.width)
 }
 
+function overlapsPlatformVertically(platform: Platform, y: number): boolean {
+  return y > platform.y && (y - frogCollisionHeight) < platform.y + platform.height
+}
+
 function overlapsFinish(finish: Platform, position: Vector2): boolean {
   const verticalLandingTolerance = 8
 
@@ -82,6 +94,96 @@ function findLandingHeight(
   }
 
   return landingHeight
+}
+
+function resolvePlatformCollisions(
+  previousPosition: Vector2,
+  nextPosition: Vector2,
+  nextVelocity: Vector2,
+  level: LevelData,
+): CollisionResult {
+  let resolvedPosition = { ...nextPosition }
+  let resolvedVelocity = { ...nextVelocity }
+
+  for (const platform of level.platforms) {
+    if (!overlapsPlatformVertically(platform, resolvedPosition.y)) {
+      continue
+    }
+
+    const previousRight = previousPosition.x + frogRadius
+    const previousLeft = previousPosition.x - frogRadius
+    const nextRight = resolvedPosition.x + frogRadius
+    const nextLeft = resolvedPosition.x - frogRadius
+
+    if (resolvedVelocity.x > 0 && previousRight <= platform.x && nextRight >= platform.x) {
+      resolvedPosition = {
+        ...resolvedPosition,
+        x: platform.x - frogRadius,
+      }
+      resolvedVelocity = {
+        ...resolvedVelocity,
+        x: 0,
+      }
+    }
+
+    if (
+      resolvedVelocity.x < 0
+      && previousLeft >= platform.x + platform.width
+      && nextLeft <= platform.x + platform.width
+    ) {
+      resolvedPosition = {
+        ...resolvedPosition,
+        x: platform.x + platform.width + frogRadius,
+      }
+      resolvedVelocity = {
+        ...resolvedVelocity,
+        x: 0,
+      }
+    }
+  }
+
+  let landingHeight = findLandingHeight(previousPosition, resolvedPosition, level)
+  if (landingHeight !== null) {
+    resolvedPosition = {
+      ...resolvedPosition,
+      y: landingHeight,
+    }
+    resolvedVelocity = { x: 0, y: 0 }
+
+    return {
+      position: resolvedPosition,
+      velocity: resolvedVelocity,
+      landingHeight,
+    }
+  }
+
+  for (const platform of level.platforms) {
+    if (!overlapsPlatform(platform, resolvedPosition.x) || resolvedVelocity.y >= 0) {
+      continue
+    }
+
+    const platformBottom = platform.y + platform.height
+    const previousTop = previousPosition.y - frogCollisionHeight
+    const nextTop = resolvedPosition.y - frogCollisionHeight
+    if (previousTop >= platformBottom && nextTop <= platformBottom) {
+      resolvedPosition = {
+        ...resolvedPosition,
+        y: platformBottom + frogCollisionHeight,
+      }
+      resolvedVelocity = {
+        ...resolvedVelocity,
+        y: 0,
+      }
+    }
+  }
+
+  landingHeight = findLandingHeight(previousPosition, resolvedPosition, level)
+
+  return {
+    position: resolvedPosition,
+    velocity: resolvedVelocity,
+    landingHeight,
+  }
 }
 
 export function createInitialGameState(level: LevelData): GameState {
@@ -181,29 +283,36 @@ export function simulateTick(state: GameState, deltaSeconds: number, level: Leve
     x: state.frog.velocity.x,
     y: state.frog.velocity.y + (gravity * deltaSeconds),
   }
-  const nextPosition = {
-    x: clamp(
-      state.frog.position.x + (nextVelocity.x * deltaSeconds),
-      frogRadius,
-      level.worldWidth - frogRadius,
-    ),
-    y: state.frog.position.y + (nextVelocity.y * deltaSeconds),
+  const nextX = state.frog.position.x + (nextVelocity.x * deltaSeconds)
+  const clampedX = clamp(nextX, frogRadius, level.worldWidth - frogRadius)
+  const nextVelocityAfterWorldCollision = {
+    ...nextVelocity,
+    x: clampedX === nextX ? nextVelocity.x : 0,
   }
-  const landingHeight = findLandingHeight(state.frog.position, nextPosition, level)
+  const nextPosition = {
+    x: clampedX,
+    y: state.frog.position.y + (nextVelocityAfterWorldCollision.y * deltaSeconds),
+  }
+  const collision = resolvePlatformCollisions(
+    state.frog.position,
+    nextPosition,
+    nextVelocityAfterWorldCollision,
+    level,
+  )
 
-  if (landingHeight === null) {
+  if (collision.landingHeight === null) {
     return {
       ...state,
       frog: {
-        position: nextPosition,
-        velocity: nextVelocity,
+        position: collision.position,
+        velocity: collision.velocity,
       },
     }
   }
 
   const landedPosition = {
-    x: nextPosition.x,
-    y: landingHeight,
+    x: collision.position.x,
+    y: collision.landingHeight,
   }
   const nextJumpCount = state.jumpCount + 1
 
