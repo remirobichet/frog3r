@@ -287,6 +287,12 @@ function getRoleDisplayName(role: PlayerRole | 'spectator'): string {
 }
 
 function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
+  if (state.phase === 'finished') {
+    const jumps = state.finishedAtJumpCount ?? state.jumpCount
+    const jumpLabel = jumps === 1 ? 'jump' : 'jumps'
+    return `Finish reached in ${jumps} ${jumpLabel}. Change level to run again.`
+  }
+
   if (role === 'direction') {
     return state.phase === 'charging'
       ? 'Guide the arc with your cursor before your teammate releases.'
@@ -372,7 +378,7 @@ function createFrogTextures(frogTexture: Texture): Texture[] {
 }
 
 function getFrogAnimation(gameState: GameState): FrogAnimation {
-  if (gameState.phase === 'charging') {
+  if (gameState.phase === 'charging' || gameState.phase === 'finished') {
     return 'idle'
   }
 
@@ -693,6 +699,9 @@ export async function startGameRuntime(
     const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
 
     powerBarFill.clear()
+    powerBarBacking.visible = gameState.phase !== 'finished'
+    powerBarFrame.visible = gameState.phase !== 'finished'
+    powerBarFill.visible = gameState.phase !== 'finished'
     powerBarFill.roundRect(
       powerBarX + POWER_BAR_FILL_X_OFFSET,
       powerBarY + POWER_BAR_FILL_Y_OFFSET,

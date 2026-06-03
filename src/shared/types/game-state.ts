@@ -5,7 +5,7 @@ export interface Vector2 {
 
 export type PlayerId = 'player1' | 'player2' | 'player3'
 export type PlayerRole = 'direction' | 'power' | 'midJump'
-export type GamePhase = 'charging' | 'airborne'
+export type GamePhase = 'charging' | 'airborne' | 'finished'
 
 export interface FrogBodyState {
   position: Vector2
@@ -21,4 +21,5 @@ export interface GameState {
   roles: Record<PlayerId, PlayerRole>
   midAirJumpUsed: boolean
   jumpCount: number
+  finishedAtJumpCount: number | null
 }

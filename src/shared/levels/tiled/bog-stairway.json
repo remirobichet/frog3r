@@ -42,7 +42,8 @@
       "x": 0,
       "y": 0,
       "objects": [
-        { "id": 101, "name": "spawn", "point": true, "x": 160, "y": 920 }
+        { "id": 101, "name": "spawn", "point": true, "x": 160, "y": 920 },
+        { "id": 102, "name": "finish", "x": 1670, "y": 680, "width": 140, "height": 80 }
       ]
     }
   ],

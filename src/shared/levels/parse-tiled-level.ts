@@ -98,6 +98,20 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
     throw new Error(`Tiled level ${id} is missing a spawn marker`)
   }
 
+  const finishObject = map.layers
+    .filter(isObjectLayer)
+    .flatMap((layer) => layer.objects)
+    .find((object) => object.name === 'finish' || object.type === 'finish')
+
+  if (!finishObject) {
+    throw new Error(`Tiled level ${id} is missing a finish marker`)
+  }
+
+  const finish = parsePlatform(finishObject)
+  if (!finish) {
+    throw new Error(`Tiled level ${id} finish marker must be a rectangle`)
+  }
+
   const platforms = platformsLayer.objects
     .map(parsePlatform)
     .filter((platform): platform is Platform => platform !== null)
@@ -130,6 +144,7 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
       x: spawnObject.x,
       y: spawnObject.y,
     },
+    finish,
     platforms,
     tileLayers,
     backgroundColor,

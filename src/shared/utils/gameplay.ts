@@ -51,6 +51,15 @@ function overlapsPlatform(platform: Platform, x: number): boolean {
   return (x + frogRadius) > platform.x && (x - frogRadius) < (platform.x + platform.width)
 }
 
+function overlapsFinish(finish: Platform, position: Vector2): boolean {
+  const verticalLandingTolerance = 8
+
+  return (position.x + frogRadius) > finish.x
+    && (position.x - frogRadius) < finish.x + finish.width
+    && position.y >= finish.y
+    && position.y <= finish.y + finish.height + verticalLandingTolerance
+}
+
 function findLandingHeight(
   previousPosition: Vector2,
   nextPosition: Vector2,
@@ -92,6 +101,7 @@ export function createInitialGameState(level: LevelData): GameState {
     },
     midAirJumpUsed: false,
     jumpCount: 0,
+    finishedAtJumpCount: null,
   }
 }
 
@@ -191,19 +201,35 @@ export function simulateTick(state: GameState, deltaSeconds: number, level: Leve
     }
   }
 
+  const landedPosition = {
+    x: nextPosition.x,
+    y: landingHeight,
+  }
+  const nextJumpCount = state.jumpCount + 1
+
+  if (overlapsFinish(level.finish, landedPosition)) {
+    return {
+      ...state,
+      phase: 'finished',
+      frog: {
+        position: landedPosition,
+        velocity: { x: 0, y: 0 },
+      },
+      jumpCount: nextJumpCount,
+      finishedAtJumpCount: nextJumpCount,
+    }
+  }
+
   return {
     ...state,
     phase: 'charging',
     frog: {
-      position: {
-        x: nextPosition.x,
-        y: landingHeight,
-      },
+      position: landedPosition,
       velocity: { x: 0, y: 0 },
     },
     jumpPower: minJumpPower,
     midAirJumpUsed: false,
-    jumpCount: state.jumpCount + 1,
+    jumpCount: nextJumpCount,
     roles: rotateRoles(state.roles),
   }
 }

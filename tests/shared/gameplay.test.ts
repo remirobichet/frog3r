@@ -54,4 +54,29 @@ describe('gameplay basics', () => {
     expect(state.roles.player3).toBe('direction')
     expect(state.jumpCount).toBe(1)
   })
+
+  it('finishes the run when landing inside the finish marker', () => {
+    const finishLevel = {
+      ...level,
+      finish: {
+        x: level.spawn.x + 10,
+        y: level.spawn.y - 42,
+        width: 40,
+        height: 40,
+      },
+    }
+    let state = createInitialGameState(finishLevel)
+    state = launchJump(state)
+
+    for (let i = 0; i < 120; i += 1) {
+      state = simulateTick(state, 1 / 60, finishLevel)
+    }
+
+    expect(state.phase).toBe('finished')
+    expect(state.jumpCount).toBe(1)
+    expect(state.finishedAtJumpCount).toBe(1)
+    expect(state.roles.player1).toBe('direction')
+    expect(state.roles.player2).toBe('power')
+    expect(state.roles.player3).toBe('midJump')
+  })
 })

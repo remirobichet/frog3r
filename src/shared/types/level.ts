@@ -15,6 +15,7 @@ export interface LevelData {
   tileWidth: number
   tileHeight: number
   spawn: Vector2
+  finish: Platform
   platforms: Platform[]
   tileLayers: TileLayerData[]
   backgroundColor: number

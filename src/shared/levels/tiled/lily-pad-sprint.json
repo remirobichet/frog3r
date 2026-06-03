@@ -178,6 +178,18 @@
                  "width":0,
                  "x":180,
                  "y":920
+                }, 
+                {
+                 "height":40,
+                 "id":102,
+                 "name":"finish",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":40,
+                 "x":240,
+                 "y":878
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -209,8 +221,17 @@
  "tileheight":40,
  "tilesets":[
         {
+         "columns":51,
          "firstgid":1,
-         "source":"full.tsx"
+         "image":"..\/..\/..\/client\/assets\/tiles\/full.png",
+         "imageheight":2048,
+         "imagewidth":2048,
+         "margin":0,
+         "name":"full",
+         "spacing":0,
+         "tilecount":2601,
+         "tileheight":40,
+         "tilewidth":40
         }],
  "tilewidth":40,
  "type":"map",
