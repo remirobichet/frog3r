@@ -35,6 +35,6 @@
     "eslint.config.js"
   ],
   "exclude": [
-    "src/shared/levels/tiled/*.tsx"
+    "src/shared/levels/tiled/**/*.tsx"
   ]
 }

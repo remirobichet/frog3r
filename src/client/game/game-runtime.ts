@@ -90,6 +90,12 @@ interface GameStatusPanel {
   controls: HTMLSpanElement
 }
 
+interface LoadedTileset {
+  firstgid: number
+  texture: Texture
+  columns: number
+}
+
 interface PlayerRoleBanner {
   value: HTMLSpanElement
   hint: HTMLParagraphElement
@@ -110,6 +116,11 @@ const POWER_BAR_FILL_X_OFFSET = 39
 const POWER_BAR_FILL_Y_OFFSET = 58
 const POWER_BAR_FILL_WIDTH = 342
 const POWER_BAR_FILL_HEIGHT = 28
+const tileAssetUrls = import.meta.glob<string>('../assets/tiles/**/*.png', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+})
 
 function mustGetElementById<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id)
@@ -318,13 +329,12 @@ function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
 
 function drawTileLayers(
   tileContainer: Container,
-  tilesetTexture: Texture,
+  tilesets: LoadedTileset[],
   level: LevelData,
 ): void {
   tileContainer.removeChildren()
 
-  const columns = Math.floor(tilesetTexture.width / level.tileWidth)
-  if (columns <= 0) {
+  if (tilesets.length === 0) {
     return
   }
 
@@ -338,11 +348,16 @@ function drawTileLayers(
         continue
       }
 
-      const tileIndex = gid - 1
-      const sourceX = (tileIndex % columns) * level.tileWidth
-      const sourceY = Math.floor(tileIndex / columns) * level.tileHeight
+      const tileset = getTilesetForGid(gid, tilesets)
+      if (!tileset) {
+        continue
+      }
+
+      const tileIndex = gid - tileset.firstgid
+      const sourceX = (tileIndex % tileset.columns) * level.tileWidth
+      const sourceY = Math.floor(tileIndex / tileset.columns) * level.tileHeight
       const texture = new Texture({
-        source: tilesetTexture.source,
+        source: tileset.texture.source,
         frame: new Rectangle(
           sourceX,
           sourceY,
@@ -359,6 +374,56 @@ function drawTileLayers(
 
     tileContainer.addChild(layerContainer)
   }
+}
+
+function getTilesetForGid(gid: number, tilesets: LoadedTileset[]): LoadedTileset | null {
+  for (let index = tilesets.length - 1; index >= 0; index -= 1) {
+    const tileset = tilesets[index]
+    if (tileset && gid >= tileset.firstgid) {
+      return tileset
+    }
+  }
+
+  return null
+}
+
+function getTilesetAssetUrl(source: string): string | null {
+  const pngPath = source.replace(/\.tsx$/, '.png')
+  const scaledPath = `../assets/tiles/four-season-40/${pngPath.replace(/^four-season\//, '')}`
+  const originalPath = `../assets/tiles/${pngPath}`
+
+  return tileAssetUrls[scaledPath] ?? tileAssetUrls[originalPath] ?? null
+}
+
+async function loadTilesets(level: LevelData): Promise<LoadedTileset[]> {
+  if (level.tilesets.length === 0) {
+    const texture = await Assets.load<Texture>(terrainTilesetUrl)
+    return [
+      {
+        firstgid: 1,
+        texture,
+        columns: Math.floor(texture.width / level.tileWidth),
+      },
+    ]
+  }
+
+  const loadedTilesets = await Promise.all(
+    level.tilesets.map(async (tileset) => {
+      const assetUrl = getTilesetAssetUrl(tileset.source)
+      if (!assetUrl) {
+        throw new Error(`Missing tileset asset for ${tileset.source}`)
+      }
+
+      const texture = await Assets.load<Texture>(assetUrl)
+      return {
+        firstgid: tileset.firstgid,
+        texture,
+        columns: Math.floor(texture.width / level.tileWidth),
+      }
+    }),
+  )
+
+  return loadedTilesets.filter((tileset) => tileset.columns > 0)
 }
 
 function createFrogTextures(frogTexture: Texture): Texture[] {
@@ -413,7 +478,7 @@ function setFrogAnimation(
 function drawLevel(
   background: Graphics,
   tiles: Container,
-  tilesetTexture: Texture,
+  tilesets: LoadedTileset[],
   platforms: Graphics,
   level: LevelData,
 ): void {
@@ -421,7 +486,7 @@ function drawLevel(
   background.rect(0, 0, level.worldWidth, level.worldHeight)
   background.fill(level.backgroundColor)
 
-  drawTileLayers(tiles, tilesetTexture, level)
+  drawTileLayers(tiles, tilesets, level)
 
   platforms.clear()
 }
@@ -433,7 +498,7 @@ export async function startGameRuntime(
   const powerBarX = (worldWidth - POWER_BAR_FRAME_WIDTH) / 2
   const powerBarY =
     worldHeight - POWER_BAR_FRAME_HEIGHT - POWER_BAR_BOTTOM_OFFSET
-  const tilesetTexture = await Assets.load<Texture>(terrainTilesetUrl)
+  const defaultTilesets = await loadTilesets(defaultLevel)
   const frogTexture = await Assets.load<Texture>(frogSpritesheetUrl)
   const aimTexture = await Assets.load<Texture>(aimHudUrl)
   const powerbarTexture = await Assets.load<Texture>(powerbarHudUrl)
@@ -525,6 +590,10 @@ export async function startGameRuntime(
   let chargingSent = false
   let lastAimSendAt = 0
   let currentLevel = defaultLevel
+  let currentTilesets = defaultTilesets
+  const tilesetsByLevelId = new Map<string, LoadedTileset[]>([
+    [defaultLevel.id, defaultTilesets],
+  ])
   let currentLevelId = defaultLevel.id
   let currentLevelOptions = availableLevels
   let isCreator = false
@@ -534,7 +603,7 @@ export async function startGameRuntime(
   drawLevel(
     levelBackground,
     levelTiles,
-    tilesetTexture,
+    currentTilesets,
     levelPlatforms,
     currentLevel,
   )
@@ -583,18 +652,53 @@ export async function startGameRuntime(
 
     latestState = message.gameState
     myPlayerId = message.playerId
+    const levelChanged = currentLevelId !== message.levelId
     currentLevelId = message.levelId
     currentLevelOptions = message.availableLevels
     isCreator = message.isCreator
 
-    currentLevel = getLevelById(message.levelId)
-    drawLevel(
-      levelBackground,
-      levelTiles,
-      tilesetTexture,
-      levelPlatforms,
-      currentLevel,
-    )
+    if (levelChanged) {
+      const selectedLevel = getLevelById(message.levelId)
+      const cachedTilesets = tilesetsByLevelId.get(selectedLevel.id)
+      currentLevel = selectedLevel
+
+      if (cachedTilesets) {
+        currentTilesets = cachedTilesets
+        drawLevel(
+          levelBackground,
+          levelTiles,
+          currentTilesets,
+          levelPlatforms,
+          currentLevel,
+        )
+      } else {
+        void loadTilesets(selectedLevel).then((tilesets) => {
+          if (currentLevelId !== selectedLevel.id) {
+            return
+          }
+
+          tilesetsByLevelId.set(selectedLevel.id, tilesets)
+          currentTilesets = tilesets
+          drawLevel(
+            levelBackground,
+            levelTiles,
+            currentTilesets,
+            levelPlatforms,
+            currentLevel,
+          )
+        })
+      }
+    }
+
+    if (!levelChanged) {
+      drawLevel(
+        levelBackground,
+        levelTiles,
+        currentTilesets,
+        levelPlatforms,
+        currentLevel,
+      )
+    }
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)
     roomControls.roomCode.textContent = myInviteCode
     roomControls.select.disabled = !isCreator

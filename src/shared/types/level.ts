@@ -18,8 +18,14 @@ export interface LevelData {
   finish: Platform
   platforms: Platform[]
   tileLayers: TileLayerData[]
+  tilesets: LevelTileset[]
   backgroundColor: number
   platformColor: number
+}
+
+export interface LevelTileset {
+  firstgid: number
+  source: string
 }
 
 export interface TileLayerData {
@@ -95,7 +101,12 @@ export interface TiledMap {
   infinite?: boolean
   nextlayerid?: number
   nextobjectid?: number
-  tilesets?: unknown[]
+  tilesets?: TiledTileset[]
   layers: TiledLayer[]
   properties?: TiledProperty[]
+}
+
+export interface TiledTileset {
+  firstgid: number
+  source?: string
 }

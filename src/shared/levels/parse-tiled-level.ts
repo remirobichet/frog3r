@@ -132,6 +132,13 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
       visible: layer.visible ?? true,
     }))
     .filter((layer) => layer.visible && layer.data.length > 0)
+  const tilesets = (map.tilesets ?? [])
+    .filter((tileset) => Number.isFinite(tileset.firstgid) && typeof tileset.source === 'string')
+    .map((tileset) => ({
+      firstgid: tileset.firstgid,
+      source: tileset.source as string,
+    }))
+    .sort((left, right) => left.firstgid - right.firstgid)
 
   return {
     id,
@@ -147,6 +154,7 @@ export function parseTiledLevel(id: string, map: TiledMap): LevelData {
     finish,
     platforms,
     tileLayers,
+    tilesets,
     backgroundColor,
     platformColor,
   }
