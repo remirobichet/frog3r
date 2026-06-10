@@ -7,9 +7,10 @@
     <style>
       :root {
         color-scheme: dark;
-        --font-display: Georgia, "Times New Roman", serif;
-        --font-body: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
-        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        --font-display: Georgia, 'Times New Roman', serif;
+        --font-body: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        --font-mono:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         --surface-strong: rgba(9, 23, 18, 0.9);
         --surface-line: rgba(207, 242, 194, 0.18);
         --text-strong: #f5f9e7;
@@ -25,24 +26,18 @@
         min-height: 100dvh;
         font-family: var(--font-body);
         background:
-          radial-gradient(circle at 12% 8%, rgba(111, 155, 83, 0.25), transparent 30%),
-          radial-gradient(circle at 86% 48%, rgba(56, 112, 94, 0.22), transparent 32%),
+          radial-gradient(
+            circle at 12% 8%,
+            rgba(111, 155, 83, 0.25),
+            transparent 30%
+          ),
+          radial-gradient(
+            circle at 86% 48%,
+            rgba(56, 112, 94, 0.22),
+            transparent 32%
+          ),
           linear-gradient(180deg, #13241d 0%, #0b1411 100%);
         color: var(--text-strong);
-      }
-
-      body::before {
-        position: fixed;
-        inset: 0;
-        z-index: 20;
-        pointer-events: none;
-        content: "";
-        opacity: 0.11;
-        background-image:
-          radial-gradient(circle at 20% 30%, #ffffff 0 1px, transparent 1px),
-          radial-gradient(circle at 70% 80%, #ffffff 0 1px, transparent 1px);
-        background-size: 44px 44px, 67px 67px;
-        mix-blend-mode: overlay;
       }
 
       #app {
@@ -61,7 +56,11 @@
         padding: 30px;
         border: 1px solid var(--surface-line);
         border-radius: 28px;
-        background: linear-gradient(180deg, rgba(12, 31, 24, 0.95), rgba(8, 20, 17, 0.95));
+        background: linear-gradient(
+          180deg,
+          rgba(12, 31, 24, 0.95),
+          rgba(8, 20, 17, 0.95)
+        );
         box-shadow: 0 28px 70px rgba(2, 11, 8, 0.46);
         backdrop-filter: blur(14px);
       }
@@ -190,7 +189,11 @@
         overflow: hidden;
         isolation: isolate;
         background:
-          radial-gradient(circle at 50% 105%, rgba(83, 124, 66, 0.24), transparent 36%),
+          radial-gradient(
+            circle at 50% 105%,
+            rgba(83, 124, 66, 0.24),
+            transparent 36%
+          ),
           linear-gradient(180deg, #101a17 0%, #07100e 100%);
       }
 
@@ -199,10 +202,21 @@
         inset: 0;
         z-index: 1;
         pointer-events: none;
-        content: "";
+        content: '';
         background:
-          linear-gradient(90deg, rgba(4, 9, 7, 0.34), transparent 18%, transparent 82%, rgba(4, 9, 7, 0.34)),
-          linear-gradient(180deg, rgba(4, 9, 7, 0.16), transparent 28%, rgba(4, 9, 7, 0.22));
+          linear-gradient(
+            90deg,
+            rgba(4, 9, 7, 0.34),
+            transparent 18%,
+            transparent 82%,
+            rgba(4, 9, 7, 0.34)
+          ),
+          linear-gradient(
+            180deg,
+            rgba(4, 9, 7, 0.16),
+            transparent 28%,
+            rgba(4, 9, 7, 0.22)
+          );
       }
 
       #game-root canvas {
@@ -222,7 +236,11 @@
       #game-status {
         z-index: 2;
         border: 1px solid var(--surface-line);
-        background: linear-gradient(180deg, var(--surface-strong), rgba(8, 18, 15, 0.76));
+        background: linear-gradient(
+          180deg,
+          var(--surface-strong),
+          rgba(8, 18, 15, 0.76)
+        );
         box-shadow: 0 22px 58px rgba(2, 11, 8, 0.36);
         backdrop-filter: blur(16px);
       }
@@ -570,7 +588,9 @@
 
         <section id="player-hud" aria-live="polite">
           <span class="player-role-label">Now you handle</span>
-          <span id="player-role-value" class="player-role-value">Spectator</span>
+          <span id="player-role-value" class="player-role-value"
+            >Spectator</span
+          >
           <p id="player-control-hint">Waiting for a player role.</p>
         </section>
 
