@@ -101,6 +101,10 @@ interface PlayerRoleBanner {
   hint: HTMLParagraphElement
 }
 
+interface ResetNoticeBanner {
+  element: HTMLParagraphElement
+}
+
 type FrogAnimation = 'idle' | 'jump' | 'landing'
 
 const FROG_FRAME_SIZE = 160
@@ -253,6 +257,12 @@ function getPlayerRoleBanner(): PlayerRoleBanner {
   return {
     value: mustGetElementById<HTMLSpanElement>('player-role-value'),
     hint: mustGetElementById<HTMLParagraphElement>('player-control-hint'),
+  }
+}
+
+function getResetNoticeBanner(): ResetNoticeBanner {
+  return {
+    element: mustGetElementById<HTMLParagraphElement>('reset-notice'),
   }
 }
 
@@ -535,6 +545,7 @@ export async function startGameRuntime(
   const roomControls = getRoomControls()
   const gameStatus = getGameStatusPanel()
   const playerRoleBanner = getPlayerRoleBanner()
+  const resetNoticeBanner = getResetNoticeBanner()
   roomControls.copyInviteButton.hidden = false
 
   const stage = new Container()
@@ -726,6 +737,8 @@ export async function startGameRuntime(
     gameStatus.controls.textContent = roleHint
     playerRoleBanner.value.textContent = getRoleDisplayName(role)
     playerRoleBanner.hint.textContent = roleHint
+    resetNoticeBanner.element.hidden = !message.gameState.resetNotice
+    resetNoticeBanner.element.textContent = message.gameState.resetNotice?.message ?? ''
   })
 
   params.room.onLeave(() => {

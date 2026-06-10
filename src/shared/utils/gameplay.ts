@@ -27,6 +27,10 @@ const frogCollisionHeight = frogRadius * 2
 const slipperyPlatformFriction = 120
 const slipperyPlatformStopSpeed = 8
 const trampolineBounceVelocity = 850
+const resetNoticeDurationSeconds = 3
+const resetNoticeEpsilonSeconds = 1 / 120
+const outOfBoundsMessage = 'The frog fell out. Restarting from the beginning.'
+const trapMessage = 'The frog hit a trap. Restarting from the beginning.'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -81,6 +85,15 @@ function overlapsPlatformVertically(platform: Platform, y: number): boolean {
   )
 }
 
+function overlapsPlatformBody(platform: Platform, position: Vector2): boolean {
+  return (
+    position.x + frogRadius > platform.x &&
+    position.x - frogRadius < platform.x + platform.width &&
+    position.y > platform.y &&
+    position.y - frogCollisionHeight < platform.y + platform.height
+  )
+}
+
 function overlapsFinish(finish: Platform, position: Vector2): boolean {
   const verticalLandingTolerance = 8
 
@@ -104,6 +117,10 @@ function findLandingPlatform(
   let landingPlatform: Platform | null = null
 
   for (const platform of level.platforms) {
+    if (platform.trap) {
+      continue
+    }
+
     if (!overlapsPlatform(platform, nextPosition.x)) {
       continue
     }
@@ -124,6 +141,10 @@ function findSupportedPlatform(
   level: LevelData,
 ): Platform | null {
   for (const platform of level.platforms) {
+    if (platform.trap) {
+      continue
+    }
+
     if (Math.abs(position.y - platform.y) > 0.5) {
       continue
     }
@@ -150,6 +171,67 @@ function applyHorizontalFriction(
   return Math.sign(velocityX) * nextSpeed
 }
 
+function isOutOfBounds(position: Vector2, level: LevelData): boolean {
+  return (
+    position.x + frogRadius < 0 ||
+    position.x - frogRadius > level.worldWidth ||
+    position.y - frogCollisionHeight > level.worldHeight
+  )
+}
+
+function overlapsTrap(position: Vector2, level: LevelData): boolean {
+  return level.platforms.some(
+    (platform) => platform.trap && overlapsPlatformBody(platform, position),
+  )
+}
+
+function tickResetNotice(state: GameState, deltaSeconds: number): GameState {
+  if (!state.resetNotice) {
+    return state
+  }
+
+  const remainingSeconds = Math.max(
+    0,
+    state.resetNotice.remainingSeconds - deltaSeconds,
+  )
+
+  return {
+    ...state,
+    resetNotice:
+      remainingSeconds > resetNoticeEpsilonSeconds
+        ? {
+            ...state.resetNotice,
+            remainingSeconds,
+          }
+        : null,
+  }
+}
+
+function resetLevelAfterFailure(level: LevelData, message: string): GameState {
+  return {
+    ...createInitialGameState(level),
+    resetNotice: {
+      message,
+      remainingSeconds: resetNoticeDurationSeconds,
+    },
+  }
+}
+
+function startTrapResetCountdown(state: GameState, position: Vector2): GameState {
+  return {
+    ...state,
+    phase: 'resetting',
+    frog: {
+      position,
+      velocity: { x: 0, y: 0 },
+    },
+    resetNotice: {
+      message: trapMessage,
+      remainingSeconds: resetNoticeDurationSeconds,
+    },
+  }
+}
+
 function resolvePlatformCollisions(
   previousPosition: Vector2,
   nextPosition: Vector2,
@@ -160,6 +242,10 @@ function resolvePlatformCollisions(
   let resolvedVelocity = { ...nextVelocity }
 
   for (const platform of level.platforms) {
+    if (platform.trap) {
+      continue
+    }
+
     if (!overlapsPlatformVertically(platform, resolvedPosition.y)) {
       continue
     }
@@ -227,6 +313,10 @@ function resolvePlatformCollisions(
   }
 
   for (const platform of level.platforms) {
+    if (platform.trap) {
+      continue
+    }
+
     if (
       !overlapsPlatform(platform, resolvedPosition.x) ||
       resolvedVelocity.y >= 0
@@ -337,6 +427,7 @@ export function createInitialGameState(level: LevelData): GameState {
     midAirJumpUsed: false,
     jumpCount: 0,
     finishedAtJumpCount: null,
+    resetNotice: null,
   }
 }
 
@@ -427,6 +518,22 @@ export function simulateTick(
   deltaSeconds: number,
   level: LevelData,
 ): GameState {
+  const stateWithNotice = tickResetNotice(state, deltaSeconds)
+
+  if (state.phase === 'resetting') {
+    return stateWithNotice.resetNotice ? stateWithNotice : createInitialGameState(level)
+  }
+
+  if (overlapsTrap(stateWithNotice.frog.position, level)) {
+    return startTrapResetCountdown(stateWithNotice, stateWithNotice.frog.position)
+  }
+
+  if (isOutOfBounds(stateWithNotice.frog.position, level)) {
+    return resetLevelAfterFailure(level, outOfBoundsMessage)
+  }
+
+  state = stateWithNotice
+
   if (state.phase === 'charging') {
     return simulateGroundSlide(state, deltaSeconds, level)
   }
@@ -449,6 +556,15 @@ export function simulateTick(
     x: clampedX,
     y: state.frog.position.y + nextVelocityAfterWorldCollision.y * deltaSeconds,
   }
+
+  if (overlapsTrap(nextPosition, level)) {
+    return startTrapResetCountdown(state, nextPosition)
+  }
+
+  if (isOutOfBounds(nextPosition, level)) {
+    return resetLevelAfterFailure(level, outOfBoundsMessage)
+  }
+
   const collision = resolvePlatformCollisions(
     state.frog.position,
     nextPosition,

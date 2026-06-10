@@ -5,11 +5,16 @@ export interface Vector2 {
 
 export type PlayerId = 'player1' | 'player2' | 'player3'
 export type PlayerRole = 'direction' | 'power' | 'midJump'
-export type GamePhase = 'charging' | 'airborne' | 'finished'
+export type GamePhase = 'charging' | 'airborne' | 'resetting' | 'finished'
 
 export interface FrogBodyState {
   position: Vector2
   velocity: Vector2
+}
+
+export interface ResetNoticeState {
+  message: string
+  remainingSeconds: number
 }
 
 export interface GameState {
@@ -22,4 +27,5 @@ export interface GameState {
   midAirJumpUsed: boolean
   jumpCount: number
   finishedAtJumpCount: number | null
+  resetNotice: ResetNoticeState | null
 }

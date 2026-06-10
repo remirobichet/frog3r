@@ -218,6 +218,7 @@
 
       #room-controls,
       #player-hud,
+      #reset-notice,
       #game-status {
         z-index: 2;
         border: 1px solid var(--surface-line);
@@ -275,6 +276,28 @@
         font-size: 0.72rem;
         line-height: 1.25;
         text-wrap: pretty;
+      }
+
+      #reset-notice {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(420px, calc(100vw - 32px));
+        padding: 18px 22px;
+        border-radius: 22px;
+        color: #f6ffe9;
+        font-family: var(--font-display);
+        font-size: clamp(1.2rem, 3vw, 2rem);
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+        text-align: center;
+        text-wrap: balance;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
+      #reset-notice[hidden] {
+        display: none;
       }
 
       .room-label,
@@ -550,6 +573,8 @@
           <span id="player-role-value" class="player-role-value">Spectator</span>
           <p id="player-control-hint">Waiting for a player role.</p>
         </section>
+
+        <p id="reset-notice" aria-live="assertive" hidden></p>
 
         <details id="game-status">
           <summary>Match details</summary>

@@ -135,6 +135,15 @@ export class GameRoom extends Room {
 
   private tick(deltaSeconds: number): void {
     const level = getLevelById(this.currentLevelId)
+
+    if (this.gameState.phase === 'resetting') {
+      this.gameState = simulateTick(this.gameState, deltaSeconds, level)
+      if (this.gameState.phase === 'charging') {
+        this.resetInputState()
+      }
+      return
+    }
+
     const directionPlayer = findPlayerByRole(this.gameState, 'direction')
     const powerPlayer = findPlayerByRole(this.gameState, 'power')
     const midJumpPlayer = findPlayerByRole(this.gameState, 'midJump')
@@ -154,7 +163,18 @@ export class GameRoom extends Room {
       this.miniJumpQueued[midJumpPlayer] = false
     }
 
+    const phaseBeforeSimulation = this.gameState.phase
     this.gameState = simulateTick(this.gameState, deltaSeconds, level)
+    if (
+      this.gameState.phase === 'resetting'
+      || (
+        phaseBeforeSimulation !== 'charging'
+        && this.gameState.phase === 'charging'
+        && this.gameState.resetNotice !== null
+      )
+    ) {
+      this.resetInputState()
+    }
   }
 
   private setLevel(levelId: string): void {
@@ -166,6 +186,10 @@ export class GameRoom extends Room {
     this.currentLevelId = nextLevel.id
     this.roundRevision += 1
     this.gameState = createInitialGameState(nextLevel)
+    this.resetInputState()
+  }
+
+  private resetInputState(): void {
     this.directionIntent = {
       player1: { x: 0, y: -1 },
       player2: { x: 0, y: -1 },

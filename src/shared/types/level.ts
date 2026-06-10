@@ -7,6 +7,7 @@ export interface Platform {
   height: number
   slippery: boolean
   trampoline: boolean
+  trap: boolean
 }
 
 export interface LevelData {
