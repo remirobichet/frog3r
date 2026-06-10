@@ -34,6 +34,7 @@ function parsePlatform(object: TiledObject): Platform | null {
   const width = object.width ?? 0
   const height = object.height ?? 0
   const slipperyProperty = getProperty(object.properties, 'slippery', 'bool')
+  const trampolineProperty = getProperty(object.properties, 'trampoline', 'bool')
   if (width <= 0 || height <= 0) {
     return null
   }
@@ -44,6 +45,7 @@ function parsePlatform(object: TiledObject): Platform | null {
     width,
     height,
     slippery: slipperyProperty === true,
+    trampoline: trampolineProperty === true,
   }
 }
 

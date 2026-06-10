@@ -64,6 +64,7 @@ describe('gameplay basics', () => {
         width: 40,
         height: 40,
         slippery: false,
+        trampoline: false,
       },
     }
     let state = createInitialGameState(finishLevel)
@@ -91,6 +92,7 @@ describe('gameplay basics', () => {
           width: 400,
           height: 40,
           slippery: true,
+          trampoline: false,
         },
       ],
       finish: {
@@ -99,6 +101,7 @@ describe('gameplay basics', () => {
         width: 40,
         height: 40,
         slippery: false,
+        trampoline: false,
       },
     }
     let state = createInitialGameState(slipperyLevel)
@@ -122,5 +125,46 @@ describe('gameplay basics', () => {
     expect(state.frog.position.x).toBeGreaterThan(slidingX)
     expect(state.jumpPower).toBeGreaterThan(minJumpPower)
     expect(state.jumpDirection.x).toBeLessThan(0)
+  })
+
+  it('bounces the frog upward from trampoline platforms', () => {
+    const trampolineLevel = {
+      ...level,
+      platforms: [
+        {
+          x: 0,
+          y: level.spawn.y,
+          width: 400,
+          height: 40,
+          slippery: false,
+          trampoline: true,
+        },
+      ],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+      },
+    }
+    let state = createInitialGameState(trampolineLevel)
+
+    state = updateDirection(state, { x: 1, y: -1 })
+    state = launchJump(state)
+
+    for (let i = 0; i < 120; i += 1) {
+      state = simulateTick(state, 1 / 60, trampolineLevel)
+
+      if (state.frog.velocity.y < -500 && state.frog.position.y === level.spawn.y) {
+        break
+      }
+    }
+
+    expect(state.phase).toBe('airborne')
+    expect(state.frog.position.y).toBe(level.spawn.y)
+    expect(state.frog.velocity.y).toBeLessThan(-500)
+    expect(state.jumpCount).toBe(0)
   })
 })

@@ -6,6 +6,7 @@ export interface Platform {
   width: number
   height: number
   slippery: boolean
+  trampoline: boolean
 }
 
 export interface LevelData {
