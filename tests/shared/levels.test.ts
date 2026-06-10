@@ -17,6 +17,7 @@ describe('level registry', () => {
     expect(level.spawn.y).toBe(920)
     expect(level.finish.x).toBe(1720)
     expect(level.finish.y).toBe(640)
+    expect(level.platforms[0]?.slippery).toBe(false)
     expect(level.platforms.length).toBeGreaterThan(1)
     expect(level.worldWidth).toBe(getDefaultLevel().worldWidth)
     expect(level.worldHeight).toBe(getDefaultLevel().worldHeight)

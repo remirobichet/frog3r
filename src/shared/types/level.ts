@@ -5,6 +5,7 @@ export interface Platform {
   y: number
   width: number
   height: number
+  slippery: boolean
 }
 
 export interface LevelData {
@@ -57,6 +58,7 @@ export interface TiledObject {
   width?: number
   height?: number
   point?: boolean
+  properties?: TiledProperty[]
 }
 
 export interface TiledObjectLayer {

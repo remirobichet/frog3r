@@ -15,9 +15,12 @@ interface CollisionResult {
   position: Vector2
   velocity: Vector2
   landingHeight: number | null
+  landingPlatform: Platform | null
 }
 
 const frogCollisionHeight = frogRadius * 2
+const slipperyPlatformFriction = 120
+const slipperyPlatformStopSpeed = 8
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -72,16 +75,16 @@ function overlapsFinish(finish: Platform, position: Vector2): boolean {
     && position.y <= finish.y + finish.height + verticalLandingTolerance
 }
 
-function findLandingHeight(
+function findLandingPlatform(
   previousPosition: Vector2,
   nextPosition: Vector2,
   level: LevelData,
-): number | null {
+): Platform | null {
   if (nextPosition.y < previousPosition.y) {
     return null
   }
 
-  let landingHeight: number | null = null
+  let landingPlatform: Platform | null = null
 
   for (const platform of level.platforms) {
     if (!overlapsPlatform(platform, nextPosition.x)) {
@@ -89,11 +92,38 @@ function findLandingHeight(
     }
 
     if (previousPosition.y <= platform.y && nextPosition.y >= platform.y) {
-      landingHeight = landingHeight === null ? platform.y : Math.min(landingHeight, platform.y)
+      landingPlatform = landingPlatform === null || platform.y < landingPlatform.y
+        ? platform
+        : landingPlatform
     }
   }
 
-  return landingHeight
+  return landingPlatform
+}
+
+function findSupportedPlatform(position: Vector2, level: LevelData): Platform | null {
+  for (const platform of level.platforms) {
+    if (Math.abs(position.y - platform.y) > 0.5) {
+      continue
+    }
+
+    if (overlapsPlatform(platform, position.x)) {
+      return platform
+    }
+  }
+
+  return null
+}
+
+function applyHorizontalFriction(velocityX: number, deltaSeconds: number): number {
+  const speed = Math.abs(velocityX)
+  const nextSpeed = Math.max(0, speed - (slipperyPlatformFriction * deltaSeconds))
+
+  if (nextSpeed < slipperyPlatformStopSpeed) {
+    return 0
+  }
+
+  return Math.sign(velocityX) * nextSpeed
 }
 
 function resolvePlatformCollisions(
@@ -142,18 +172,19 @@ function resolvePlatformCollisions(
     }
   }
 
-  let landingHeight = findLandingHeight(previousPosition, resolvedPosition, level)
-  if (landingHeight !== null) {
+  let landingPlatform = findLandingPlatform(previousPosition, resolvedPosition, level)
+  if (landingPlatform !== null) {
     resolvedPosition = {
       ...resolvedPosition,
-      y: landingHeight,
+      y: landingPlatform.y,
     }
-    resolvedVelocity = { x: 0, y: 0 }
+    resolvedVelocity = { x: landingPlatform.slippery ? resolvedVelocity.x : 0, y: 0 }
 
     return {
       position: resolvedPosition,
       velocity: resolvedVelocity,
-      landingHeight,
+      landingHeight: landingPlatform.y,
+      landingPlatform,
     }
   }
 
@@ -177,12 +208,64 @@ function resolvePlatformCollisions(
     }
   }
 
-  landingHeight = findLandingHeight(previousPosition, resolvedPosition, level)
+  landingPlatform = findLandingPlatform(previousPosition, resolvedPosition, level)
 
   return {
     position: resolvedPosition,
     velocity: resolvedVelocity,
-    landingHeight,
+    landingHeight: landingPlatform?.y ?? null,
+    landingPlatform,
+  }
+}
+
+function simulateGroundSlide(state: GameState, deltaSeconds: number, level: LevelData): GameState {
+  const supportedPlatform = findSupportedPlatform(state.frog.position, level)
+  if (!supportedPlatform?.slippery || state.frog.velocity.x === 0) {
+    return state.frog.velocity.x === 0
+      ? state
+      : {
+        ...state,
+        frog: {
+          ...state.frog,
+          velocity: { x: 0, y: 0 },
+        },
+      }
+  }
+
+  const nextX = state.frog.position.x + (state.frog.velocity.x * deltaSeconds)
+  const clampedX = clamp(nextX, frogRadius, level.worldWidth - frogRadius)
+  const movedPosition = {
+    x: clampedX,
+    y: state.frog.position.y,
+  }
+  const nextSupportedPlatform = findSupportedPlatform(movedPosition, level)
+  const hitWorldEdge = clampedX !== nextX
+
+  if (!nextSupportedPlatform) {
+    return {
+      ...state,
+      phase: 'airborne',
+      frog: {
+        position: movedPosition,
+        velocity: {
+          x: hitWorldEdge ? 0 : state.frog.velocity.x,
+          y: 0,
+        },
+      },
+    }
+  }
+
+  return {
+    ...state,
+    frog: {
+      position: movedPosition,
+      velocity: {
+        x: hitWorldEdge || !nextSupportedPlatform.slippery
+          ? 0
+          : applyHorizontalFriction(state.frog.velocity.x, deltaSeconds),
+        y: 0,
+      },
+    },
   }
 }
 
@@ -247,7 +330,7 @@ export function launchJump(state: GameState): GameState {
     frog: {
       ...state.frog,
       velocity: {
-        x: direction.x * state.jumpPower * horizontalSpeedFactor,
+        x: state.frog.velocity.x + (direction.x * state.jumpPower * horizontalSpeedFactor),
         y: direction.y * state.jumpPower,
       },
     },
@@ -275,6 +358,10 @@ export function triggerMidAirJump(state: GameState): GameState {
 }
 
 export function simulateTick(state: GameState, deltaSeconds: number, level: LevelData): GameState {
+  if (state.phase === 'charging') {
+    return simulateGroundSlide(state, deltaSeconds, level)
+  }
+
   if (state.phase !== 'airborne') {
     return state
   }
@@ -334,7 +421,7 @@ export function simulateTick(state: GameState, deltaSeconds: number, level: Leve
     phase: 'charging',
     frog: {
       position: landedPosition,
-      velocity: { x: 0, y: 0 },
+      velocity: collision.velocity,
     },
     jumpPower: minJumpPower,
     midAirJumpUsed: false,
