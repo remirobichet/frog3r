@@ -112,10 +112,10 @@ const POWER_BAR_FRAME_HEIGHT = 84
 const POWER_BAR_BOTTOM_OFFSET = 28
 const POWER_BAR_BACKING_PADDING_X = 12
 const POWER_BAR_BACKING_PADDING_Y = 10
-const POWER_BAR_FILL_X_OFFSET = 39
-const POWER_BAR_FILL_Y_OFFSET = 58
-const POWER_BAR_FILL_WIDTH = 342
-const POWER_BAR_FILL_HEIGHT = 28
+const POWER_BAR_FILL_X_OFFSET = 34
+const POWER_BAR_FILL_Y_OFFSET = 25
+const POWER_BAR_FILL_WIDTH = 352
+const POWER_BAR_FILL_HEIGHT = 34
 const tileAssetUrls = import.meta.glob<string>('../assets/tiles/**/*.png', {
   eager: true,
   import: 'default',
