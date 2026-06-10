@@ -8,6 +8,14 @@ export interface Platform {
   slippery: boolean
   trampoline: boolean
   trap: boolean
+  movement?: PlatformMovement
+}
+
+export interface PlatformMovement {
+  axis: 'x' | 'y'
+  distance: number
+  duration: number
+  offset: number
 }
 
 export interface LevelData {

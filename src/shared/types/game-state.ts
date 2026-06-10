@@ -18,6 +18,7 @@ export interface ResetNoticeState {
 }
 
 export interface GameState {
+  elapsedSeconds: number
   phase: GamePhase
   frog: FrogBodyState
   activeDirection: Vector2

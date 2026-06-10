@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { getAllLevels, getDefaultLevel, getLevelById } from '@shared/levels'
+import { parseTiledLevel } from '@shared/levels/parse-tiled-level'
+import type { TiledMap } from '@shared/types/level'
 
 describe('level registry', () => {
   it('registers the Tiled levels', () => {
@@ -30,5 +32,56 @@ describe('level registry', () => {
       expect(level.finish.width).toBeGreaterThan(0)
       expect(level.finish.height).toBeGreaterThan(0)
     }
+  })
+
+  it('parses moving platform properties from Tiled data', () => {
+    const tiledMap: TiledMap = {
+      type: 'map',
+      width: 10,
+      height: 10,
+      tilewidth: 40,
+      tileheight: 40,
+      layers: [
+        {
+          id: 1,
+          name: 'platforms',
+          type: 'objectgroup',
+          objects: [
+            {
+              id: 1,
+              x: 40,
+              y: 200,
+              width: 120,
+              height: 20,
+              properties: [
+                { name: 'moving', type: 'bool', value: true },
+                { name: 'moveAxis', type: 'string', value: 'y' },
+                { name: 'moveDistance', type: 'float', value: 80 },
+                { name: 'moveDuration', type: 'float', value: 2.5 },
+                { name: 'moveOffset', type: 'float', value: 0.5 },
+              ],
+            },
+          ],
+        },
+        {
+          id: 2,
+          name: 'markers',
+          type: 'objectgroup',
+          objects: [
+            { id: 2, name: 'spawn', x: 80, y: 200, point: true },
+            { id: 3, name: 'finish', x: 320, y: 200, width: 40, height: 40 },
+          ],
+        },
+      ],
+    }
+
+    const parsedLevel = parseTiledLevel('moving-test', tiledMap)
+
+    expect(parsedLevel.platforms[0]?.movement).toEqual({
+      axis: 'y',
+      distance: 80,
+      duration: 2.5,
+      offset: 0.5,
+    })
   })
 })

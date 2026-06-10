@@ -1,6 +1,7 @@
 import type {
   LevelData,
   Platform,
+  PlatformMovement,
   TiledLayer,
   TiledMap,
   TiledObject,
@@ -30,6 +31,41 @@ function parseColor(hexColor: string | null, fallback: number): number {
   return Number.parseInt(hexColor.replace('#', ''), 16)
 }
 
+function getNumberProperty(
+  properties: TiledProperty[] | undefined,
+  name: string,
+): number | null {
+  const property = properties?.find(
+    (entry) => entry.name === name && (entry.type === 'float' || entry.type === 'int'),
+  )
+
+  return typeof property?.value === 'number' ? property.value : null
+}
+
+function parsePlatformMovement(object: TiledObject): PlatformMovement | undefined {
+  const movingProperty = getProperty(object.properties, 'moving', 'bool')
+  if (movingProperty !== true) {
+    return undefined
+  }
+
+  const axisProperty = getProperty(object.properties, 'moveAxis', 'string')
+  const distanceProperty = getNumberProperty(object.properties, 'moveDistance')
+  const durationProperty = getNumberProperty(object.properties, 'moveDuration')
+  const offsetProperty = getNumberProperty(object.properties, 'moveOffset')
+  const axis = axisProperty === 'y' ? 'y' : 'x'
+
+  if (!distanceProperty || !durationProperty || durationProperty <= 0) {
+    return undefined
+  }
+
+  return {
+    axis,
+    distance: distanceProperty,
+    duration: durationProperty,
+    offset: offsetProperty ?? 0,
+  }
+}
+
 function parsePlatform(object: TiledObject): Platform | null {
   const width = object.width ?? 0
   const height = object.height ?? 0
@@ -48,6 +84,7 @@ function parsePlatform(object: TiledObject): Platform | null {
     slippery: slipperyProperty === true,
     trampoline: trampolineProperty === true,
     trap: trapProperty === true,
+    movement: parsePlatformMovement(object),
   }
 }
 

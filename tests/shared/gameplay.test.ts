@@ -173,6 +173,45 @@ describe('gameplay basics', () => {
     expect(state.jumpCount).toBe(0)
   })
 
+  it('carries the frog while standing on a moving platform', () => {
+    const movingLevel = {
+      ...level,
+      spawn: { x: 80, y: level.spawn.y },
+      platforms: [
+        {
+          x: 40,
+          y: level.spawn.y,
+          width: 120,
+          height: 40,
+          slippery: false,
+          trampoline: false,
+          trap: false,
+          movement: {
+            axis: 'x' as const,
+            distance: 60,
+            duration: 2,
+            offset: 0,
+          },
+        },
+      ],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+    const state = simulateTick(createInitialGameState(movingLevel), 0.5, movingLevel)
+
+    expect(state.phase).toBe('charging')
+    expect(state.elapsedSeconds).toBe(0.5)
+    expect(state.frog.position.x).toBe(110)
+    expect(state.frog.position.y).toBe(level.spawn.y)
+  })
+
   it('restarts the level with a temporary message when the frog falls out', () => {
     const state = simulateTick(
       {

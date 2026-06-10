@@ -22,13 +22,14 @@ import {
   worldWidth,
 } from '@shared/constants/game'
 import { availableLevels, getDefaultLevel, getLevelById } from '@shared/levels'
+import { getPlatformPosition } from '@shared/utils/gameplay'
 import type {
   GameState,
   PlayerId,
   PlayerRole,
   Vector2,
 } from '@shared/types/game-state'
-import type { LevelData, LevelSummary } from '@shared/types/level'
+import type { LevelData, LevelSummary, Platform } from '@shared/types/level'
 import type {
   ClientInputMessage,
   JoinedMessage,
@@ -227,6 +228,24 @@ function getFrogRenderPosition(frogPosition: Vector2): Vector2 {
   }
 }
 
+function intersectsRect(
+  leftX: number,
+  leftY: number,
+  leftWidth: number,
+  leftHeight: number,
+  rightX: number,
+  rightY: number,
+  rightWidth: number,
+  rightHeight: number,
+): boolean {
+  return (
+    leftX < rightX + rightWidth &&
+    leftX + leftWidth > rightX &&
+    leftY < rightY + rightHeight &&
+    leftY + leftHeight > rightY
+  )
+}
+
 function getRoomControls(): RoomControls {
   return {
     panel: mustGetElementById<HTMLDivElement>('room-controls'),
@@ -341,12 +360,16 @@ function drawTileLayers(
   tileContainer: Container,
   tilesets: LoadedTileset[],
   level: LevelData,
-): void {
+  elapsedSeconds: number,
+): Set<Platform> {
   tileContainer.removeChildren()
+  const movingPlatformsWithTiles = new Set<Platform>()
 
   if (tilesets.length === 0) {
-    return
+    return movingPlatformsWithTiles
   }
+
+  const movingPlatforms = level.platforms.filter((platform) => platform.movement)
 
   for (const layer of level.tileLayers) {
     const layerContainer = new Container()
@@ -376,14 +399,35 @@ function drawTileLayers(
         ),
       })
       const sprite = new Sprite(texture)
+      const tileX = (index % layer.width) * level.tileWidth
+      const tileY = Math.floor(index / layer.width) * level.tileHeight
+      const movingPlatform = movingPlatforms.find((platform) => intersectsRect(
+        tileX,
+        tileY,
+        level.tileWidth,
+        level.tileHeight,
+        platform.x,
+        platform.y,
+        platform.width,
+        platform.height,
+      ))
 
-      sprite.x = (index % layer.width) * level.tileWidth
-      sprite.y = Math.floor(index / layer.width) * level.tileHeight
+      if (movingPlatform) {
+        movingPlatformsWithTiles.add(movingPlatform)
+        const platformPosition = getPlatformPosition(movingPlatform, elapsedSeconds)
+        sprite.x = platformPosition.x + tileX - movingPlatform.x
+        sprite.y = platformPosition.y + tileY - movingPlatform.y
+      } else {
+        sprite.x = tileX
+        sprite.y = tileY
+      }
       layerContainer.addChild(sprite)
     }
 
     tileContainer.addChild(layerContainer)
   }
+
+  return movingPlatformsWithTiles
 }
 
 function getTilesetForGid(gid: number, tilesets: LoadedTileset[]): LoadedTileset | null {
@@ -491,14 +535,24 @@ function drawLevel(
   tilesets: LoadedTileset[],
   platforms: Graphics,
   level: LevelData,
+  elapsedSeconds: number,
 ): void {
   background.clear()
   background.rect(0, 0, level.worldWidth, level.worldHeight)
   background.fill(level.backgroundColor)
 
-  drawTileLayers(tiles, tilesets, level)
+  const movingPlatformsWithTiles = drawTileLayers(tiles, tilesets, level, elapsedSeconds)
 
   platforms.clear()
+  for (const platform of level.platforms) {
+    if (!platform.movement || movingPlatformsWithTiles.has(platform)) {
+      continue
+    }
+
+    const position = getPlatformPosition(platform, elapsedSeconds)
+    platforms.rect(position.x, position.y, platform.width, platform.height)
+    platforms.fill({ color: level.platformColor, alpha: 0.28 })
+  }
 }
 
 export async function startGameRuntime(
@@ -617,6 +671,7 @@ export async function startGameRuntime(
     currentTilesets,
     levelPlatforms,
     currentLevel,
+    0,
   )
   syncLevelOptions(roomControls.select, currentLevelOptions, currentLevelId)
   roomControls.roomCode.textContent = myInviteCode
@@ -681,6 +736,7 @@ export async function startGameRuntime(
           currentTilesets,
           levelPlatforms,
           currentLevel,
+          message.gameState.elapsedSeconds,
         )
       } else {
         void loadTilesets(selectedLevel).then((tilesets) => {
@@ -696,6 +752,7 @@ export async function startGameRuntime(
             currentTilesets,
             levelPlatforms,
             currentLevel,
+            message.gameState.elapsedSeconds,
           )
         })
       }
@@ -708,6 +765,7 @@ export async function startGameRuntime(
         currentTilesets,
         levelPlatforms,
         currentLevel,
+        message.gameState.elapsedSeconds,
       )
     }
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)

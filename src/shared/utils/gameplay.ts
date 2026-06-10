@@ -32,6 +32,47 @@ const resetNoticeEpsilonSeconds = 1 / 120
 const outOfBoundsMessage = 'The frog fell out. Restarting from the beginning.'
 const trapMessage = 'The frog hit a trap. Restarting from the beginning.'
 
+export function getPlatformPosition(platform: Platform, elapsedSeconds: number): Vector2 {
+  if (!platform.movement) {
+    return { x: platform.x, y: platform.y }
+  }
+
+  const phaseSeconds =
+    ((elapsedSeconds + platform.movement.offset) % platform.movement.duration
+      + platform.movement.duration) % platform.movement.duration
+  const progress = phaseSeconds / platform.movement.duration
+  const movementRatio = progress <= 0.5 ? progress * 2 : (1 - progress) * 2
+  const movementOffset = platform.movement.distance * movementRatio
+
+  return platform.movement.axis === 'x'
+    ? { x: platform.x + movementOffset, y: platform.y }
+    : { x: platform.x, y: platform.y + movementOffset }
+}
+
+function getPlatformAtElapsed(platform: Platform, elapsedSeconds: number): Platform {
+  const position = getPlatformPosition(platform, elapsedSeconds)
+
+  return {
+    ...platform,
+    x: position.x,
+    y: position.y,
+  }
+}
+
+function getPlatformDelta(
+  platform: Platform,
+  previousElapsedSeconds: number,
+  nextElapsedSeconds: number,
+): Vector2 {
+  const previousPosition = getPlatformPosition(platform, previousElapsedSeconds)
+  const nextPosition = getPlatformPosition(platform, nextElapsedSeconds)
+
+  return {
+    x: nextPosition.x - previousPosition.x,
+    y: nextPosition.y - previousPosition.y,
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -109,6 +150,7 @@ function findLandingPlatform(
   previousPosition: Vector2,
   nextPosition: Vector2,
   level: LevelData,
+  elapsedSeconds: number,
 ): Platform | null {
   if (nextPosition.y < previousPosition.y) {
     return null
@@ -116,7 +158,8 @@ function findLandingPlatform(
 
   let landingPlatform: Platform | null = null
 
-  for (const platform of level.platforms) {
+  for (const levelPlatform of level.platforms) {
+    const platform = getPlatformAtElapsed(levelPlatform, elapsedSeconds)
     if (platform.trap) {
       continue
     }
@@ -139,8 +182,10 @@ function findLandingPlatform(
 function findSupportedPlatform(
   position: Vector2,
   level: LevelData,
+  elapsedSeconds: number,
 ): Platform | null {
-  for (const platform of level.platforms) {
+  for (const levelPlatform of level.platforms) {
+    const platform = getPlatformAtElapsed(levelPlatform, elapsedSeconds)
     if (platform.trap) {
       continue
     }
@@ -150,7 +195,7 @@ function findSupportedPlatform(
     }
 
     if (overlapsPlatform(platform, position.x)) {
-      return platform
+      return levelPlatform
     }
   }
 
@@ -179,9 +224,16 @@ function isOutOfBounds(position: Vector2, level: LevelData): boolean {
   )
 }
 
-function overlapsTrap(position: Vector2, level: LevelData): boolean {
+function overlapsTrap(
+  position: Vector2,
+  level: LevelData,
+  elapsedSeconds: number,
+): boolean {
   return level.platforms.some(
-    (platform) => platform.trap && overlapsPlatformBody(platform, position),
+    (platform) => platform.trap && overlapsPlatformBody(
+      getPlatformAtElapsed(platform, elapsedSeconds),
+      position,
+    ),
   )
 }
 
@@ -237,11 +289,13 @@ function resolvePlatformCollisions(
   nextPosition: Vector2,
   nextVelocity: Vector2,
   level: LevelData,
+  elapsedSeconds: number,
 ): CollisionResult {
   let resolvedPosition = { ...nextPosition }
   let resolvedVelocity = { ...nextVelocity }
 
-  for (const platform of level.platforms) {
+  for (const levelPlatform of level.platforms) {
+    const platform = getPlatformAtElapsed(levelPlatform, elapsedSeconds)
     if (platform.trap) {
       continue
     }
@@ -290,6 +344,7 @@ function resolvePlatformCollisions(
     previousPosition,
     resolvedPosition,
     level,
+    elapsedSeconds,
   )
   if (landingPlatform !== null) {
     resolvedPosition = {
@@ -312,7 +367,8 @@ function resolvePlatformCollisions(
     }
   }
 
-  for (const platform of level.platforms) {
+  for (const levelPlatform of level.platforms) {
+    const platform = getPlatformAtElapsed(levelPlatform, elapsedSeconds)
     if (platform.trap) {
       continue
     }
@@ -343,6 +399,7 @@ function resolvePlatformCollisions(
     previousPosition,
     resolvedPosition,
     level,
+    elapsedSeconds,
   )
 
   return {
@@ -358,26 +415,47 @@ function simulateGroundSlide(
   deltaSeconds: number,
   level: LevelData,
 ): GameState {
-  const supportedPlatform = findSupportedPlatform(state.frog.position, level)
+  const previousElapsedSeconds = state.elapsedSeconds - deltaSeconds
+  const supportedPlatform = findSupportedPlatform(
+    state.frog.position,
+    level,
+    previousElapsedSeconds,
+  )
+  const platformDelta = supportedPlatform?.movement
+    ? getPlatformDelta(supportedPlatform, previousElapsedSeconds, state.elapsedSeconds)
+    : { x: 0, y: 0 }
+
   if (!supportedPlatform?.slippery || state.frog.velocity.x === 0) {
-    return state.frog.velocity.x === 0
+    return state.frog.velocity.x === 0 && platformDelta.x === 0 && platformDelta.y === 0
       ? state
       : {
           ...state,
           frog: {
             ...state.frog,
+            position: {
+              x: clamp(
+                state.frog.position.x + platformDelta.x,
+                frogRadius,
+                level.worldWidth - frogRadius,
+              ),
+              y: state.frog.position.y + platformDelta.y,
+            },
             velocity: { x: 0, y: 0 },
           },
         }
   }
 
-  const nextX = state.frog.position.x + state.frog.velocity.x * deltaSeconds
+  const nextX = state.frog.position.x + platformDelta.x + state.frog.velocity.x * deltaSeconds
   const clampedX = clamp(nextX, frogRadius, level.worldWidth - frogRadius)
   const movedPosition = {
     x: clampedX,
-    y: state.frog.position.y,
+    y: state.frog.position.y + platformDelta.y,
   }
-  const nextSupportedPlatform = findSupportedPlatform(movedPosition, level)
+  const nextSupportedPlatform = findSupportedPlatform(
+    movedPosition,
+    level,
+    state.elapsedSeconds,
+  )
   const hitWorldEdge = clampedX !== nextX
 
   if (!nextSupportedPlatform) {
@@ -411,6 +489,7 @@ function simulateGroundSlide(
 
 export function createInitialGameState(level: LevelData): GameState {
   return {
+    elapsedSeconds: 0,
     phase: 'charging',
     frog: {
       position: { x: level.spawn.x, y: level.spawn.y },
@@ -518,13 +597,16 @@ export function simulateTick(
   deltaSeconds: number,
   level: LevelData,
 ): GameState {
-  const stateWithNotice = tickResetNotice(state, deltaSeconds)
+  const stateWithNotice = {
+    ...tickResetNotice(state, deltaSeconds),
+    elapsedSeconds: state.elapsedSeconds + deltaSeconds,
+  }
 
   if (state.phase === 'resetting') {
     return stateWithNotice.resetNotice ? stateWithNotice : createInitialGameState(level)
   }
 
-  if (overlapsTrap(stateWithNotice.frog.position, level)) {
+  if (overlapsTrap(stateWithNotice.frog.position, level, stateWithNotice.elapsedSeconds)) {
     return startTrapResetCountdown(stateWithNotice, stateWithNotice.frog.position)
   }
 
@@ -557,7 +639,7 @@ export function simulateTick(
     y: state.frog.position.y + nextVelocityAfterWorldCollision.y * deltaSeconds,
   }
 
-  if (overlapsTrap(nextPosition, level)) {
+  if (overlapsTrap(nextPosition, level, state.elapsedSeconds)) {
     return startTrapResetCountdown(state, nextPosition)
   }
 
@@ -570,6 +652,7 @@ export function simulateTick(
     nextPosition,
     nextVelocityAfterWorldCollision,
     level,
+    state.elapsedSeconds,
   )
 
   if (collision.landingHeight === null) {
