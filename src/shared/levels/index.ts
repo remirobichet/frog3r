@@ -1,8 +1,10 @@
+import levelZeroMap from '@shared/levels/tiled/level_0.json'
 import levelOneOneMap from '@shared/levels/tiled/level_1-1.json'
 import { parseTiledLevel } from '@shared/levels/parse-tiled-level'
 import type { LevelData, LevelSummary } from '@shared/types/level'
 
 const allLevels: LevelData[] = [
+  parseTiledLevel('level_0', levelZeroMap),
   parseTiledLevel('level_1-1', levelOneOneMap),
 ]
 
