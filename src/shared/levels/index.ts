@@ -1,11 +1,9 @@
-import bogStairwayMap from '@shared/levels/tiled/bog-stairway.json'
-import lilyPadSprintMap from '@shared/levels/tiled/lily-pad-sprint.json'
+import levelOneOneMap from '@shared/levels/tiled/level_1-1.json'
 import { parseTiledLevel } from '@shared/levels/parse-tiled-level'
 import type { LevelData, LevelSummary } from '@shared/types/level'
 
 const allLevels: LevelData[] = [
-  parseTiledLevel('lily-pad-sprint', lilyPadSprintMap),
-  parseTiledLevel('bog-stairway', bogStairwayMap),
+  parseTiledLevel('level_1-1', levelOneOneMap),
 ]
 
 const [defaultLevel] = allLevels

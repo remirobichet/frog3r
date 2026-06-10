@@ -120,10 +120,9 @@ The server runs the simulation on a fixed `60 FPS` timestep and broadcasts the a
 
 ## Levels
 
-The repository currently registers two levels from Tiled JSON data:
+The repository currently registers one level from Tiled JSON data:
 
-- `lily-pad-sprint`
-- `bog-stairway`
+- `level_1-1`
 
 Levels are parsed into shared runtime data and must currently share the same world dimensions.
 

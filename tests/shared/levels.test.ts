@@ -3,20 +3,20 @@ import { describe, expect, it } from 'vitest'
 import { getAllLevels, getDefaultLevel, getLevelById } from '@shared/levels'
 
 describe('level registry', () => {
-  it('registers the two initial Tiled levels', () => {
+  it('registers the initial Tiled level', () => {
     const levels = getAllLevels()
 
-    expect(levels).toHaveLength(2)
-    expect(levels.map((level) => level.id)).toEqual(['lily-pad-sprint', 'bog-stairway'])
+    expect(levels).toHaveLength(1)
+    expect(levels.map((level) => level.id)).toEqual(['level_1-1'])
   })
 
   it('parses spawn and platforms from Tiled data', () => {
-    const level = getLevelById('bog-stairway')
+    const level = getLevelById('level_1-1')
 
-    expect(level.spawn.x).toBe(160)
+    expect(level.spawn.x).toBe(180)
     expect(level.spawn.y).toBe(920)
-    expect(level.finish.x).toBe(1670)
-    expect(level.finish.y).toBe(680)
+    expect(level.finish.x).toBe(1720)
+    expect(level.finish.y).toBe(640)
     expect(level.platforms.length).toBeGreaterThan(1)
     expect(level.worldWidth).toBe(getDefaultLevel().worldWidth)
     expect(level.worldHeight).toBe(getDefaultLevel().worldHeight)
