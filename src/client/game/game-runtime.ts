@@ -356,6 +356,20 @@ function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
   return 'You are watching this run. Join with an open player slot to take a role.'
 }
 
+function getCenterNoticeMessage(state: GameState): string | null {
+  if (state.resetNotice) {
+    return state.resetNotice.message
+  }
+
+  if (state.phase === 'finished') {
+    const jumps = state.finishedAtJumpCount ?? state.jumpCount
+    const jumpLabel = jumps === 1 ? 'jump' : 'jumps'
+    return `You won in ${jumps} ${jumpLabel}!`
+  }
+
+  return null
+}
+
 function drawTileLayers(
   tileContainer: Container,
   tilesets: LoadedTileset[],
@@ -794,9 +808,11 @@ export async function startGameRuntime(
       : 'ready'
     gameStatus.controls.textContent = roleHint
     playerRoleBanner.value.textContent = getRoleDisplayName(role)
+    playerRoleBanner.hint.hidden = message.gameState.phase === 'finished'
     playerRoleBanner.hint.textContent = roleHint
-    resetNoticeBanner.element.hidden = !message.gameState.resetNotice
-    resetNoticeBanner.element.textContent = message.gameState.resetNotice?.message ?? ''
+    const centerNoticeMessage = getCenterNoticeMessage(message.gameState)
+    resetNoticeBanner.element.hidden = centerNoticeMessage === null
+    resetNoticeBanner.element.textContent = centerNoticeMessage ?? ''
   })
 
   params.room.onLeave(() => {
