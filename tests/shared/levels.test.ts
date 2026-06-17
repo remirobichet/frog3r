@@ -8,8 +8,13 @@ describe('level registry', () => {
   it('registers the Tiled levels', () => {
     const levels = getAllLevels()
 
-    expect(levels).toHaveLength(2)
-    expect(levels.map((level) => level.id)).toEqual(['level_0', 'level_1-1'])
+    expect(levels).toHaveLength(4)
+    expect(levels.map((level) => level.id)).toEqual([
+      'level_0',
+      'level_1-1',
+      'level_1-2',
+      'level_1-3',
+    ])
   })
 
   it('parses spawn and platforms from Tiled data', () => {
