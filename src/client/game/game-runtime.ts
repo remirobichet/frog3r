@@ -805,7 +805,7 @@ export async function startGameRuntime(
     }
 
     lastSentPlayerName = nextName
-    window.localStorage.setItem('frog3r-player-name', nextName)
+    window.localStorage.setItem('frogg3r-player-name', nextName)
     sendInput({
       type: 'setName',
       name: nextName,
@@ -831,7 +831,7 @@ export async function startGameRuntime(
     myInviteCode = message.inviteCode
     roomControls.roomCode.textContent = myInviteCode
 
-    const savedName = window.localStorage.getItem('frog3r-player-name')
+    const savedName = window.localStorage.getItem('frogg3r-player-name')
     if (savedName) {
       playerRoleBanner.nameInput.value = savedName
       sendPlayerName()

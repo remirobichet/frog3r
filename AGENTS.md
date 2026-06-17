@@ -1,8 +1,8 @@
-# AGENTS.md - Frog3r
+# AGENTS.md - Frogg3r
 
 ## Project Overview
 
-Frog3r is a cooperative 3-player game where players control different aspects of a frog's jump. One player aims the jump, one charges and releases it, and one triggers the mid-air jump. Roles rotate after each landing. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
+Frogg3r is a cooperative 3-player game where players control different aspects of a frog's jump. One player aims the jump, one charges and releases it, and one triggers the mid-air jump. Roles rotate after each landing. Built with TypeScript, PixiJS, and Colyseus for multiplayer.
 
 ---
 
@@ -52,15 +52,15 @@ pnpm run test:coverage # Coverage report
 
 ```typescript
 // External first, then relative
-import { Something } from 'external-package';
-import { AnotherThing } from './relative/path';
+import { Something } from 'external-package'
+import { AnotherThing } from './relative/path'
 
 // Named imports preferred over default
-import { Game, Player, Constants } from '../shared';
+import { Game, Player, Constants } from '../shared'
 
 // Type-only imports
-import type { PlayerState } from '../shared/types';
-import { type Vector2, type JumpParams } from './math';
+import type { PlayerState } from '../shared/types'
+import { type Vector2, type JumpParams } from './math'
 ```
 
 ### Naming Conventions
@@ -107,8 +107,8 @@ class GameError extends Error {
     public readonly code: string,
     public readonly context?: Record<string, unknown>,
   ) {
-    super(message);
-    this.name = 'GameError';
+    super(message)
+    this.name = 'GameError'
   }
 }
 ```
@@ -166,15 +166,15 @@ class GameError extends Error {
 
 ```typescript
 // Example test
-import { describe, it, expect } from 'vitest';
-import { calculateJumpDistance } from '../shared/physics';
+import { describe, it, expect } from 'vitest'
+import { calculateJumpDistance } from '../shared/physics'
 
 describe('calculateJumpDistance', () => {
   it('should calculate correct distance for given power and direction', () => {
-    const result = calculateJumpDistance(50, { x: 1, y: 0 });
-    expect(result).toBeCloseTo(50, 1);
-  });
-});
+    const result = calculateJumpDistance(50, { x: 1, y: 0 })
+    expect(result).toBeCloseTo(50, 1)
+  })
+})
 ```
 
 ---

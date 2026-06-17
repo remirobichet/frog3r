@@ -1,6 +1,6 @@
-# Frog3r
+# Frogg3r
 
-Frog3r is a cooperative 3-player multiplayer game where each player controls one part of a frog's jump cycle.
+Frogg3r is a cooperative 3-player multiplayer game where each player controls one part of a frog's jump cycle.
 
 - Player 1 aims the jump direction
 - Player 2 charges and releases jump power

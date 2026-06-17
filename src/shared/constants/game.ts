@@ -1,4 +1,4 @@
-export const gameRoomName = 'frog3r-room'
+export const gameRoomName = 'frogg3r-room'
 export const fixedTimestepMs = 1000 / 60
 
 export const worldWidth = 1920
