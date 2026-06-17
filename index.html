@@ -157,7 +157,6 @@
 
       .lobby-action.compact {
         width: auto;
-        min-width: 112px;
         padding-inline: 12px;
         font-size: 0.84rem;
       }
@@ -249,7 +248,6 @@
         position: absolute;
         top: 16px;
         left: 16px;
-        width: min(274px, calc(100vw - 32px));
         padding: 13px;
         border-radius: 18px;
       }
@@ -354,8 +352,10 @@
       .room-value {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
+        width: fit-content;
         min-height: 38px;
-        padding: 0 12px;
+        padding: 0 10px;
         border: 1px solid rgba(186, 238, 171, 0.16);
         border-radius: 13px;
         background: rgba(243, 252, 233, 0.08);
@@ -367,11 +367,10 @@
       }
 
       .room-copy-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        display: flex;
         gap: 8px;
         align-items: center;
-        margin: 7px 0 12px;
+        margin-top: 7px;
       }
 
       .room-copy-row .compact {
@@ -379,14 +378,14 @@
       }
 
       .level-select {
-        width: 100%;
-        margin-top: 7px;
+        width: 156px;
         padding: 11px 12px;
         border: 1px solid rgba(186, 238, 171, 0.16);
         border-radius: 14px;
         outline: none;
         background: rgba(243, 252, 233, 0.08);
         color: #f3fbe8;
+        color-scheme: dark;
         font-family: var(--font-body);
         font-weight: 700;
         transition:
@@ -395,38 +394,62 @@
           box-shadow 180ms ease;
       }
 
+      .level-select option {
+        background: #0b1813;
+        color: #f3fbe8;
+      }
+
       .level-select:focus-visible {
         border-color: rgba(188, 232, 175, 0.45);
         background: rgba(243, 252, 233, 0.11);
         box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
       }
 
-      .level-note {
-        margin: 9px 0 0;
-        color: rgba(216, 237, 207, 0.76);
-        font-size: 12px;
-        line-height: 1.4;
-        text-wrap: pretty;
-      }
-
       #game-status {
         position: absolute;
         top: 16px;
         right: 16px;
-        width: min(316px, calc(100vw - 32px));
+        width: auto;
         border-radius: 18px;
         color: var(--text-strong);
       }
 
+      #game-status[open] {
+        width: min(316px, calc(100vw - 32px));
+      }
+
       #game-status summary {
-        padding: 11px 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-width: 52px;
+        min-height: 42px;
+        padding: 0 10px;
         color: rgba(232, 244, 219, 0.9);
         font-family: var(--font-mono);
-        font-size: 0.72rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
+        font-size: 1rem;
         cursor: pointer;
-        list-style-position: inside;
+        list-style: none;
+      }
+
+      #game-status summary::-webkit-details-marker {
+        display: none;
+      }
+
+      #game-status summary::after {
+        width: 7px;
+        height: 7px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        content: '';
+        opacity: 0.7;
+        transform: translateY(-2px) rotate(45deg);
+        transition: transform 160ms ease;
+      }
+
+      #game-status[open] summary::after {
+        transform: translateY(2px) rotate(225deg);
       }
 
       #game-status summary:focus-visible {
@@ -479,78 +502,6 @@
         line-height: 1.35;
         text-wrap: pretty;
       }
-
-      @media (max-width: 760px) {
-        #lobby {
-          padding: 12px;
-        }
-
-        #lobby-panel {
-          padding: 22px;
-          border-radius: 20px;
-        }
-
-        .invite-row,
-        .action-row,
-        .room-copy-row {
-          grid-template-columns: 1fr;
-        }
-
-        .lobby-action.compact,
-        .room-copy-row .compact {
-          width: 100%;
-        }
-
-        #room-controls {
-          top: 12px;
-          left: 12px;
-          width: min(268px, calc(100vw - 24px));
-        }
-
-        #game-status {
-          top: 12px;
-          right: 12px;
-          width: min(196px, calc(100vw - 304px));
-        }
-
-        #game-status[open] {
-          width: min(316px, calc(100vw - 24px));
-        }
-
-        #player-hud {
-          top: 12px;
-          width: min(230px, calc(100vw - 304px));
-          padding: 7px 10px 8px;
-          border-radius: 14px;
-        }
-      }
-
-      @media (max-width: 520px) {
-        #room-controls,
-        #game-status {
-          position: absolute;
-          width: calc(50vw - 18px);
-        }
-
-        #game-status summary {
-          padding-inline: 10px;
-          font-size: 0.62rem;
-          letter-spacing: 0.1em;
-        }
-
-        #game-status[open] {
-          width: calc(100vw - 24px);
-        }
-
-        #player-hud {
-          top: 84px;
-          width: calc(100vw - 24px);
-        }
-
-        .level-note {
-          display: none;
-        }
-      }
     </style>
   </head>
   <body>
@@ -574,7 +525,7 @@
               type="button"
               hidden
             >
-              Copy Link
+              📋
             </button>
           </div>
           <div class="action-row">
@@ -599,14 +550,14 @@
               class="lobby-action compact"
               type="button"
             >
-              Copy Link
+              📋
             </button>
+            <select
+              id="level-select"
+              class="level-select"
+              aria-label="Level"
+            ></select>
           </div>
-          <label class="level-label" for="level-select">Level</label>
-          <select id="level-select" class="level-select"></select>
-          <p id="level-note" class="level-note">
-            Only the room creator can switch the level.
-          </p>
         </aside>
 
         <section id="player-hud" aria-live="polite">
@@ -630,7 +581,7 @@
         <p id="reset-notice" aria-live="assertive" hidden></p>
 
         <details id="game-status">
-          <summary>Match details</summary>
+          <summary aria-label="Match details">ℹ️</summary>
           <div class="status-panel-body">
             <div class="status-grid">
               <div class="status-item">

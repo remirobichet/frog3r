@@ -16,13 +16,15 @@ async function bootstrap(): Promise<void> {
     throw new Error('Missing #game-root mount node')
   }
 
-  const copyInviteInGameButtonElement = document.getElementById('copy-invite-ingame')
+  const copyInviteInGameButtonElement =
+    document.getElementById('copy-invite-ingame')
   if (!(copyInviteInGameButtonElement instanceof HTMLButtonElement)) {
     throw new Error('Missing #copy-invite-ingame button')
   }
 
   const gameRootElement: HTMLElement = gameRoot
-  const copyInviteInGameButton: HTMLButtonElement = copyInviteInGameButtonElement
+  const copyInviteInGameButton: HTMLButtonElement =
+    copyInviteInGameButtonElement
 
   const lobby = createLobbyPage()
   const httpBase = getServerHttpBase()
@@ -35,7 +37,7 @@ async function bootstrap(): Promise<void> {
   let copyButtonResetTimeout: number | null = null
 
   function resetCopyInviteButtonLabel(): void {
-    copyInviteInGameButton.textContent = 'Copy Link'
+    copyInviteInGameButton.textContent = '📋'
   }
 
   function showInviteCopiedFeedback(): void {
@@ -45,7 +47,7 @@ async function bootstrap(): Promise<void> {
       window.clearTimeout(copyButtonResetTimeout)
     }
 
-    copyInviteInGameButton.textContent = 'Copied'
+    copyInviteInGameButton.textContent = '✅'
     copyButtonResetTimeout = window.setTimeout(() => {
       resetCopyInviteButtonLabel()
       copyButtonResetTimeout = null
@@ -70,7 +72,10 @@ async function bootstrap(): Promise<void> {
     }
   }
 
-  async function connectToRoom(roomId: string, inviteCode: string): Promise<void> {
+  async function connectToRoom(
+    roomId: string,
+    inviteCode: string,
+  ): Promise<void> {
     await teardownGame()
 
     lobby.setStatus('Connecting...')
@@ -104,7 +109,8 @@ async function bootstrap(): Promise<void> {
       lobby.setStatus(`Room ${room.inviteCode} created. Share invite link.`)
       await connectToRoom(room.roomId, room.inviteCode)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Create room failed'
+      const message =
+        error instanceof Error ? error.message : 'Create room failed'
       lobby.setStatus(message)
     } finally {
       lobby.setBusy(false)
@@ -126,7 +132,8 @@ async function bootstrap(): Promise<void> {
       lobby.setCopyVisible(true)
       await connectToRoom(room.roomId, inviteCode)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Join room failed'
+      const message =
+        error instanceof Error ? error.message : 'Join room failed'
       lobby.setStatus(message)
     } finally {
       lobby.setBusy(false)
@@ -142,8 +149,10 @@ async function bootstrap(): Promise<void> {
   })
 
   lobby.onCopyInvite(async () => {
-    const activeInviteCode = gameRuntime?.getInviteCode() || lobby.getInviteCode().trim().toUpperCase()
-    const link = inviteLink || `${window.location.origin}/?room=${activeInviteCode}`
+    const activeInviteCode =
+      gameRuntime?.getInviteCode() || lobby.getInviteCode().trim().toUpperCase()
+    const link =
+      inviteLink || `${window.location.origin}/?room=${activeInviteCode}`
 
     await navigator.clipboard.writeText(link)
     lobby.setStatus(`Invite copied: ${link}`)
@@ -151,8 +160,10 @@ async function bootstrap(): Promise<void> {
   })
 
   copyInviteInGameButton.addEventListener('click', async () => {
-    const activeInviteCode = gameRuntime?.getInviteCode() || lobby.getInviteCode().trim().toUpperCase()
-    const link = inviteLink || `${window.location.origin}/?room=${activeInviteCode}`
+    const activeInviteCode =
+      gameRuntime?.getInviteCode() || lobby.getInviteCode().trim().toUpperCase()
+    const link =
+      inviteLink || `${window.location.origin}/?room=${activeInviteCode}`
 
     await navigator.clipboard.writeText(link)
     showInviteCopiedFeedback()

@@ -75,7 +75,6 @@ interface RoomControls {
   copyInviteButton: HTMLButtonElement
   roomCode: HTMLSpanElement
   select: HTMLSelectElement
-  note: HTMLParagraphElement
 }
 
 interface GameStatusPanel {
@@ -289,7 +288,6 @@ function getRoomControls(): RoomControls {
       mustGetElementById<HTMLButtonElement>('copy-invite-ingame'),
     roomCode: mustGetElementById<HTMLSpanElement>('room-code'),
     select: mustGetElementById<HTMLSelectElement>('level-select'),
-    note: mustGetElementById<HTMLParagraphElement>('level-note'),
   }
 }
 function getGameStatusPanel(): GameStatusPanel {
@@ -756,6 +754,7 @@ export async function startGameRuntime(
   let currentLevelId = defaultLevel.id
   let currentLevelOptions = availableLevels
   let isCreator = false
+  let previousIsCreator: boolean | null = null
   let latestRoundRevision = 0
   let currentFrogAnimation: FrogAnimation = 'idle'
   let lastSentPlayerName = ''
@@ -769,6 +768,7 @@ export async function startGameRuntime(
     0,
   )
   syncLevelOptions(roomControls.select, currentLevelOptions, currentLevelId)
+  roomControls.select.disabled = true
   roomControls.roomCode.textContent = myInviteCode
   gameStatus.level.textContent = currentLevel.name
   playerRoleBanner.value.textContent = 'Spectator'
@@ -897,11 +897,10 @@ export async function startGameRuntime(
       )
     }
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)
-    roomControls.roomCode.textContent = myInviteCode
-    roomControls.select.disabled = !isCreator
-    roomControls.note.textContent = isCreator
-      ? 'You created this room. Changing level resets the frog run.'
-      : 'Only the room creator can switch the level.'
+    if (previousIsCreator !== isCreator) {
+      previousIsCreator = isCreator
+      roomControls.select.disabled = !isCreator
+    }
 
     const role = message.playerId
       ? message.gameState.roles[message.playerId]
