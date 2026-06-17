@@ -112,6 +112,7 @@ type FrogAnimation = 'idle' | 'jump' | 'landing'
 const FROG_FRAME_SIZE = 160
 const FROG_RENDER_SIZE = frogRadius * 4
 const FROG_VISUAL_Y_OFFSET = 24
+const FROG_FACING_DEAD_ZONE = 0.01
 const AIM_RENDER_SIZE = 96
 const POWER_BAR_FRAME_WIDTH = 420
 const POWER_BAR_FRAME_HEIGHT = 84
@@ -618,6 +619,15 @@ function setFrogAnimation(
   return nextAnimation
 }
 
+function setFrogFacing(frog: AnimatedSprite, horizontalDirection: number): void {
+  if (Math.abs(horizontalDirection) <= FROG_FACING_DEAD_ZONE) {
+    return
+  }
+
+  const horizontalScale = Math.abs(frog.scale.x)
+  frog.scale.x = horizontalDirection < 0 ? -horizontalScale : horizontalScale
+}
+
 function drawLevel(
   background: Graphics,
   tiles: Container,
@@ -1008,6 +1018,12 @@ export async function startGameRuntime(
       frogTextures,
       getFrogAnimation(gameState),
       currentFrogAnimation,
+    )
+    setFrogFacing(
+      frog,
+      gameState.phase === 'airborne'
+        ? gameState.frog.velocity.x
+        : gameState.jumpDirection.x,
     )
 
     aim.position.set(frogRenderPosition.x, frogRenderPosition.y)
