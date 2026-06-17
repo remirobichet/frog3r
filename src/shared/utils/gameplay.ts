@@ -259,9 +259,15 @@ function tickResetNotice(state: GameState, deltaSeconds: number): GameState {
   }
 }
 
-function resetLevelAfterFailure(level: LevelData, message: string): GameState {
+function resetLevelAfterFailure(
+  state: GameState,
+  level: LevelData,
+  message: string,
+): GameState {
   return {
     ...createInitialGameState(level),
+    players: state.players,
+    pings: state.pings,
     resetNotice: {
       message,
       remainingSeconds: resetNoticeDurationSeconds,
@@ -503,6 +509,12 @@ export function createInitialGameState(level: LevelData): GameState {
       player2: 'power',
       player3: 'midJump',
     },
+    players: {
+      player1: { name: 'Player 1', color: 0x6de56d, connected: false },
+      player2: { name: 'Player 2', color: 0x64b5ff, connected: false },
+      player3: { name: 'Player 3', color: 0xffcf5a, connected: false },
+    },
+    pings: [],
     midAirJumpUsed: false,
     jumpCount: 0,
     finishedAtJumpCount: null,
@@ -603,7 +615,13 @@ export function simulateTick(
   }
 
   if (state.phase === 'resetting') {
-    return stateWithNotice.resetNotice ? stateWithNotice : createInitialGameState(level)
+    return stateWithNotice.resetNotice
+      ? stateWithNotice
+      : {
+          ...createInitialGameState(level),
+          players: state.players,
+          pings: state.pings,
+        }
   }
 
   if (overlapsTrap(stateWithNotice.frog.position, level, stateWithNotice.elapsedSeconds)) {
@@ -611,7 +629,7 @@ export function simulateTick(
   }
 
   if (isOutOfBounds(stateWithNotice.frog.position, level)) {
-    return resetLevelAfterFailure(level, outOfBoundsMessage)
+    return resetLevelAfterFailure(stateWithNotice, level, outOfBoundsMessage)
   }
 
   state = stateWithNotice
@@ -644,7 +662,7 @@ export function simulateTick(
   }
 
   if (isOutOfBounds(nextPosition, level)) {
-    return resetLevelAfterFailure(level, outOfBoundsMessage)
+    return resetLevelAfterFailure(state, level, outOfBoundsMessage)
   }
 
   const collision = resolvePlatformCollisions(

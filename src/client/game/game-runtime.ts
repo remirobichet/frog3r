@@ -45,6 +45,7 @@ interface MouseState {
   x: number
   y: number
   isInsideCanvas: boolean
+  pendingPingPosition: Vector2 | null
 }
 
 interface StartGameRuntimeParams {
@@ -100,6 +101,7 @@ interface LoadedTileset {
 interface PlayerRoleBanner {
   value: HTMLSpanElement
   hint: HTMLParagraphElement
+  nameInput: HTMLInputElement
 }
 
 interface ResetNoticeBanner {
@@ -121,6 +123,7 @@ const POWER_BAR_FILL_X_OFFSET = 34
 const POWER_BAR_FILL_Y_OFFSET = 25
 const POWER_BAR_FILL_WIDTH = 352
 const POWER_BAR_FILL_HEIGHT = 34
+const PING_LIFETIME_SECONDS = 2
 const tileAssetUrls = import.meta.glob<string>('../assets/tiles/**/*.png', {
   eager: true,
   import: 'default',
@@ -136,6 +139,12 @@ function mustGetElementById<T extends HTMLElement>(id: string): T {
   return element as T
 }
 
+function isEditableEventTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+}
+
 function setupKeyboard(): KeyboardSetup {
   const state: KeyboardState = {
     pressed: new Set<string>(),
@@ -143,6 +152,10 @@ function setupKeyboard(): KeyboardSetup {
   }
 
   const handleKeyDown = (event: KeyboardEvent): void => {
+    if (isEditableEventTarget(event.target)) {
+      return
+    }
+
     if (event.code === 'Space') {
       event.preventDefault()
     }
@@ -155,6 +168,10 @@ function setupKeyboard(): KeyboardSetup {
   }
 
   const handleKeyUp = (event: KeyboardEvent): void => {
+    if (isEditableEventTarget(event.target)) {
+      return
+    }
+
     if (event.code === 'Space') {
       event.preventDefault()
     }
@@ -179,16 +196,33 @@ function setupMouse(canvas: HTMLCanvasElement, level: LevelData): MouseSetup {
     x: level.worldWidth / 2,
     y: level.spawn.y - 160,
     isInsideCanvas: false,
+    pendingPingPosition: null,
   }
 
-  const handlePointerMove = (event: PointerEvent): void => {
+  const getCanvasPosition = (event: PointerEvent): Vector2 => {
     const bounds = canvas.getBoundingClientRect()
     const scaleX = canvas.width / bounds.width
     const scaleY = canvas.height / bounds.height
 
-    state.x = (event.clientX - bounds.left) * scaleX
-    state.y = (event.clientY - bounds.top) * scaleY
+    return {
+      x: (event.clientX - bounds.left) * scaleX,
+      y: (event.clientY - bounds.top) * scaleY,
+    }
+  }
+
+  const handlePointerMove = (event: PointerEvent): void => {
+    const position = getCanvasPosition(event)
+    state.x = position.x
+    state.y = position.y
     state.isInsideCanvas = true
+  }
+
+  const handlePointerDown = (event: PointerEvent): void => {
+    const position = getCanvasPosition(event)
+    state.x = position.x
+    state.y = position.y
+    state.isInsideCanvas = true
+    state.pendingPingPosition = position
   }
 
   const handlePointerLeave = (): void => {
@@ -196,12 +230,14 @@ function setupMouse(canvas: HTMLCanvasElement, level: LevelData): MouseSetup {
   }
 
   canvas.addEventListener('pointermove', handlePointerMove)
+  canvas.addEventListener('pointerdown', handlePointerDown)
   canvas.addEventListener('pointerleave', handlePointerLeave)
 
   return {
     state,
     destroy: () => {
       canvas.removeEventListener('pointermove', handlePointerMove)
+      canvas.removeEventListener('pointerdown', handlePointerDown)
       canvas.removeEventListener('pointerleave', handlePointerLeave)
     },
   }
@@ -276,6 +312,7 @@ function getPlayerRoleBanner(): PlayerRoleBanner {
   return {
     value: mustGetElementById<HTMLSpanElement>('player-role-value'),
     hint: mustGetElementById<HTMLParagraphElement>('player-control-hint'),
+    nameInput: mustGetElementById<HTMLInputElement>('player-name-input'),
   }
 }
 
@@ -368,6 +405,46 @@ function getCenterNoticeMessage(state: GameState): string | null {
   }
 
   return null
+}
+
+function colorToCss(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`
+}
+
+function getPlayerLabel(state: GameState, playerId: PlayerId): string {
+  return state.players[playerId].name
+}
+
+function getPlayerRolesSummary(state: GameState): string {
+  return ([
+    'player1',
+    'player2',
+    'player3',
+  ] as PlayerId[]).map((playerId) => {
+    const player = state.players[playerId]
+    const connectionLabel = player.connected ? '' : ' (offline)'
+    return `${player.name}: ${state.roles[playerId]}${connectionLabel}`
+  }).join(' | ')
+}
+
+function drawPings(pingContainer: Container, state: GameState): void {
+  pingContainer.removeChildren()
+
+  for (const ping of state.pings) {
+    const player = state.players[ping.playerId]
+    const ageSeconds = state.elapsedSeconds - ping.createdAtSeconds
+    const progress = Math.max(0, Math.min(1, ageSeconds / PING_LIFETIME_SECONDS))
+    const alpha = 1 - progress
+    const radius = 18 + progress * 16
+    const marker = new Graphics()
+
+    marker.circle(ping.position.x, ping.position.y, radius)
+    marker.stroke({ color: player.color, width: 5, alpha })
+    marker.circle(ping.position.x, ping.position.y, 5)
+    marker.fill({ color: player.color, alpha: Math.max(0.24, alpha) })
+
+    pingContainer.addChild(marker)
+  }
 }
 
 function drawTileLayers(
@@ -643,6 +720,9 @@ export async function startGameRuntime(
   frog.play()
   stage.addChild(frog)
 
+  const pingContainer = new Container()
+  stage.addChild(pingContainer)
+
   const powerBarBacking = new Graphics()
   powerBarBacking.roundRect(
     powerBarX - POWER_BAR_BACKING_PADDING_X,
@@ -678,6 +758,7 @@ export async function startGameRuntime(
   let isCreator = false
   let latestRoundRevision = 0
   let currentFrogAnimation: FrogAnimation = 'idle'
+  let lastSentPlayerName = ''
 
   drawLevel(
     levelBackground,
@@ -692,6 +773,7 @@ export async function startGameRuntime(
   gameStatus.level.textContent = currentLevel.name
   playerRoleBanner.value.textContent = 'Spectator'
   playerRoleBanner.hint.textContent = 'Waiting for a player role.'
+  playerRoleBanner.nameInput.value = 'Player'
 
   function getMyRole(state: GameState): PlayerRole | 'spectator' {
     if (!myPlayerId) {
@@ -716,12 +798,44 @@ export async function startGameRuntime(
     })
   }
 
+  const sendPlayerName = (): void => {
+    const nextName = playerRoleBanner.nameInput.value.trim()
+    if (!myPlayerId || nextName === lastSentPlayerName) {
+      return
+    }
+
+    lastSentPlayerName = nextName
+    window.localStorage.setItem('frog3r-player-name', nextName)
+    sendInput({
+      type: 'setName',
+      name: nextName,
+    })
+  }
+
+  const handlePlayerNameKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Enter') {
+      return
+    }
+
+    event.preventDefault()
+    sendPlayerName()
+    playerRoleBanner.nameInput.blur()
+  }
+
   roomControls.select.addEventListener('change', handleLevelChange)
+  playerRoleBanner.nameInput.addEventListener('change', sendPlayerName)
+  playerRoleBanner.nameInput.addEventListener('keydown', handlePlayerNameKeyDown)
 
   params.room.onMessage('joined', (message: JoinedMessage) => {
     myPlayerId = message.playerId
     myInviteCode = message.inviteCode
     roomControls.roomCode.textContent = myInviteCode
+
+    const savedName = window.localStorage.getItem('frog3r-player-name')
+    if (savedName) {
+      playerRoleBanner.nameInput.value = savedName
+      sendPlayerName()
+    }
   })
 
   params.room.onMessage('state', (message: StateMessage) => {
@@ -794,10 +908,12 @@ export async function startGameRuntime(
       : 'spectator'
     const roleHint = getRoleHint(role, message.gameState)
     gameStatus.players.textContent = `${message.connectedCount}/3`
-    gameStatus.player.textContent = message.playerId ?? 'spectator'
+    gameStatus.player.textContent = message.playerId
+      ? getPlayerLabel(message.gameState, message.playerId)
+      : 'spectator'
     gameStatus.creator.textContent = isCreator ? 'yes' : 'no'
     gameStatus.level.textContent = currentLevel.name
-    gameStatus.roles.textContent = `P1 ${message.gameState.roles.player1} | P2 ${message.gameState.roles.player2} | P3 ${message.gameState.roles.player3}`
+    gameStatus.roles.textContent = getPlayerRolesSummary(message.gameState)
     gameStatus.phase.textContent = message.gameState.phase
     gameStatus.jumps.textContent = String(message.gameState.jumpCount)
     gameStatus.power.textContent = String(
@@ -808,6 +924,15 @@ export async function startGameRuntime(
       : 'ready'
     gameStatus.controls.textContent = roleHint
     playerRoleBanner.value.textContent = getRoleDisplayName(role)
+    if (message.playerId) {
+      const player = message.gameState.players[message.playerId]
+      playerRoleBanner.nameInput.style.borderColor = colorToCss(player.color)
+
+      if (document.activeElement !== playerRoleBanner.nameInput) {
+        playerRoleBanner.nameInput.value = player.name
+        lastSentPlayerName = player.name
+      }
+    }
     playerRoleBanner.hint.hidden = message.gameState.phase === 'finished'
     playerRoleBanner.hint.textContent = roleHint
     const centerNoticeMessage = getCenterNoticeMessage(message.gameState)
@@ -829,6 +954,14 @@ export async function startGameRuntime(
     const myRole = getMyRole(gameState)
     const now = performance.now()
     const frogRenderPosition = getFrogRenderPosition(gameState.frog.position)
+
+    if (mouse.state.pendingPingPosition) {
+      sendInput({
+        type: 'ping',
+        position: mouse.state.pendingPingPosition,
+      })
+      mouse.state.pendingPingPosition = null
+    }
 
     if (myRole === 'direction' && gameState.phase === 'charging') {
       if (now - lastAimSendAt >= 50) {
@@ -901,6 +1034,7 @@ export async function startGameRuntime(
       POWER_BAR_FILL_HEIGHT / 2,
     )
     powerBarFill.fill(0x7bdc67)
+    drawPings(pingContainer, gameState)
 
     keyboard.state.justPressed.clear()
   })
@@ -908,6 +1042,8 @@ export async function startGameRuntime(
   return {
     destroy: () => {
       roomControls.select.removeEventListener('change', handleLevelChange)
+      playerRoleBanner.nameInput.removeEventListener('change', sendPlayerName)
+      playerRoleBanner.nameInput.removeEventListener('keydown', handlePlayerNameKeyDown)
       roomControls.copyInviteButton.hidden = true
       keyboard.destroy()
       mouse.destroy()

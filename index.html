@@ -263,7 +263,30 @@
         border-radius: 16px;
         transform: translateX(-50%);
         text-align: center;
-        pointer-events: none;
+      }
+
+      .player-name-input {
+        width: 100%;
+        margin: 0 0 7px;
+        padding: 8px 10px;
+        border: 1px solid rgba(186, 238, 171, 0.24);
+        border-radius: 12px;
+        outline: none;
+        background: rgba(243, 252, 233, 0.08);
+        color: #f3fbe8;
+        font-family: var(--font-body);
+        font-size: 0.88rem;
+        font-weight: 800;
+        text-align: center;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .player-name-input:focus {
+        background: rgba(243, 252, 233, 0.12);
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
       }
 
       .player-role-label {
@@ -587,6 +610,16 @@
         </aside>
 
         <section id="player-hud" aria-live="polite">
+          <label class="player-role-label" for="player-name-input">
+            Your name
+          </label>
+          <input
+            id="player-name-input"
+            class="player-name-input"
+            type="text"
+            maxlength="18"
+            autocomplete="nickname"
+          />
           <span class="player-role-label">Now you handle</span>
           <span id="player-role-value" class="player-role-value"
             >Spectator</span

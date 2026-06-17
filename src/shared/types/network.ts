@@ -20,11 +20,23 @@ export interface SelectLevelInputMessage {
   levelId: string
 }
 
+export interface SetNameInputMessage {
+  type: 'setName'
+  name: string
+}
+
+export interface PingInputMessage {
+  type: 'ping'
+  position: Vector2
+}
+
 export type ClientInputMessage =
   | AimInputMessage
   | ChargeInputMessage
   | MiniJumpInputMessage
   | SelectLevelInputMessage
+  | SetNameInputMessage
+  | PingInputMessage
 
 export interface JoinedMessage {
   playerId: PlayerId

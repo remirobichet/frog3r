@@ -19,6 +19,8 @@ interface RoomOptions {
 }
 
 const playerOrder: PlayerId[] = ['player1', 'player2', 'player3']
+const pingLifetimeSeconds = 2
+const maxPlayerNameLength = 18
 
 function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
   if (state.roles.player1 === role) {
@@ -30,6 +32,25 @@ function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
   }
 
   return 'player3'
+}
+
+function sanitizePlayerName(name: string, playerId: PlayerId): string {
+  const trimmedName = name.trim().replace(/\s+/g, ' ')
+  if (!trimmedName) {
+    const playerNumber = playerOrder.indexOf(playerId) + 1
+    return `Player ${playerNumber}`
+  }
+
+  return trimmedName.slice(0, maxPlayerNameLength)
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function getOpenPlayerSlot(sessionToPlayer: Map<string, PlayerId>): PlayerId | null {
+  const assignedPlayers = new Set(sessionToPlayer.values())
+  return playerOrder.find((playerId) => !assignedPlayers.has(playerId)) ?? null
 }
 
 export class GameRoom extends Room {
@@ -89,6 +110,41 @@ export class GameRoom extends Room {
         return
       }
 
+      if (input.type === 'setName') {
+        this.gameState = {
+          ...this.gameState,
+          players: {
+            ...this.gameState.players,
+            [playerId]: {
+              ...this.gameState.players[playerId],
+              name: sanitizePlayerName(input.name, playerId),
+            },
+          },
+        }
+        this.broadcastState()
+        return
+      }
+
+      if (input.type === 'ping') {
+        const level = getLevelById(this.currentLevelId)
+        this.gameState = {
+          ...this.gameState,
+          pings: [
+            ...this.gameState.pings,
+            {
+              playerId,
+              position: {
+                x: clamp(input.position.x, 0, level.worldWidth),
+                y: clamp(input.position.y, 0, level.worldHeight),
+              },
+              createdAtSeconds: this.gameState.elapsedSeconds,
+            },
+          ],
+        }
+        this.broadcastState()
+        return
+      }
+
       this.miniJumpQueued[playerId] = true
     })
 
@@ -103,8 +159,14 @@ export class GameRoom extends Room {
       this.creatorSessionId = client.sessionId
     }
 
-    const playerId = playerOrder[this.clients.length - 1]
+    const playerId = getOpenPlayerSlot(this.sessionToPlayer)
+    if (!playerId) {
+      void client.leave()
+      return
+    }
+
     this.sessionToPlayer.set(client.sessionId, playerId)
+    this.gameState = this.setPlayerConnected(this.gameState, playerId, true)
 
     const joinedMessage: JoinedMessage = {
       playerId,
@@ -121,6 +183,7 @@ export class GameRoom extends Room {
     }
 
     this.sessionToPlayer.delete(client.sessionId)
+    this.gameState = this.setPlayerConnected(this.gameState, playerId, false)
 
     if (this.creatorSessionId === client.sessionId) {
       this.creatorSessionId = this.clients
@@ -137,7 +200,9 @@ export class GameRoom extends Room {
     const level = getLevelById(this.currentLevelId)
 
     if (this.gameState.phase === 'resetting') {
-      this.gameState = simulateTick(this.gameState, deltaSeconds, level)
+      this.gameState = this.expirePings(
+        simulateTick(this.gameState, deltaSeconds, level),
+      )
       if (this.gameState.phase === 'charging') {
         this.resetInputState()
       }
@@ -164,7 +229,9 @@ export class GameRoom extends Room {
     }
 
     const phaseBeforeSimulation = this.gameState.phase
-    this.gameState = simulateTick(this.gameState, deltaSeconds, level)
+    this.gameState = this.expirePings(
+      simulateTick(this.gameState, deltaSeconds, level),
+    )
     if (
       this.gameState.phase === 'resetting'
       || (
@@ -185,8 +252,42 @@ export class GameRoom extends Room {
 
     this.currentLevelId = nextLevel.id
     this.roundRevision += 1
-    this.gameState = createInitialGameState(nextLevel)
+    this.gameState = {
+      ...createInitialGameState(nextLevel),
+      players: this.gameState.players,
+    }
     this.resetInputState()
+  }
+
+  private setPlayerConnected(
+    state: GameState,
+    playerId: PlayerId,
+    connected: boolean,
+  ): GameState {
+    return {
+      ...state,
+      players: {
+        ...state.players,
+        [playerId]: {
+          ...state.players[playerId],
+          connected,
+        },
+      },
+    }
+  }
+
+  private expirePings(state: GameState): GameState {
+    const activePings = state.pings.filter(
+      (ping) => state.elapsedSeconds - ping.createdAtSeconds < pingLifetimeSeconds,
+    )
+    if (activePings.length === state.pings.length) {
+      return state
+    }
+
+    return {
+      ...state,
+      pings: activePings,
+    }
   }
 
   private resetInputState(): void {
