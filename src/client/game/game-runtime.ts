@@ -12,7 +12,6 @@ import {
 
 import frogSpritesheetUrl from '@client/assets/frog/frog.png'
 import aimHudUrl from '@client/assets/hud/aim.png'
-import powerbarHudUrl from '@client/assets/hud/powerbar.png'
 import terrainTilesetUrl from '@client/assets/tiles/full.png'
 import {
   frogRadius,
@@ -114,15 +113,10 @@ const FROG_RENDER_SIZE = frogRadius * 4
 const FROG_VISUAL_Y_OFFSET = 24
 const FROG_FACING_DEAD_ZONE = 0.01
 const AIM_RENDER_SIZE = 96
-const POWER_BAR_FRAME_WIDTH = 420
-const POWER_BAR_FRAME_HEIGHT = 84
-const POWER_BAR_BOTTOM_OFFSET = 28
-const POWER_BAR_BACKING_PADDING_X = 12
-const POWER_BAR_BACKING_PADDING_Y = 10
-const POWER_BAR_FILL_X_OFFSET = 34
-const POWER_BAR_FILL_Y_OFFSET = 25
-const POWER_BAR_FILL_WIDTH = 352
-const POWER_BAR_FILL_HEIGHT = 34
+const POWER_INDICATOR_WIDTH = 76
+const POWER_INDICATOR_HEIGHT = 10
+const POWER_INDICATOR_DISTANCE = 78
+const POWER_INDICATOR_HIGH_POWER_THRESHOLD = 0.72
 const PING_LIFETIME_SECONDS = 2
 const tileAssetUrls = import.meta.glob<string>('../assets/tiles/**/*.png', {
   eager: true,
@@ -140,9 +134,11 @@ function mustGetElementById<T extends HTMLElement>(id: string): T {
 }
 
 function isEditableEventTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement
-    || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  )
 }
 
 function setupKeyboard(): KeyboardSetup {
@@ -415,15 +411,13 @@ function getPlayerLabel(state: GameState, playerId: PlayerId): string {
 }
 
 function getPlayerRolesSummary(state: GameState): string {
-  return ([
-    'player1',
-    'player2',
-    'player3',
-  ] as PlayerId[]).map((playerId) => {
-    const player = state.players[playerId]
-    const connectionLabel = player.connected ? '' : ' (offline)'
-    return `${player.name}: ${state.roles[playerId]}${connectionLabel}`
-  }).join(' | ')
+  return (['player1', 'player2', 'player3'] as PlayerId[])
+    .map((playerId) => {
+      const player = state.players[playerId]
+      const connectionLabel = player.connected ? '' : ' (offline)'
+      return `${player.name}: ${state.roles[playerId]}${connectionLabel}`
+    })
+    .join(' | ')
 }
 
 function drawPings(pingContainer: Container, state: GameState): void {
@@ -432,7 +426,10 @@ function drawPings(pingContainer: Container, state: GameState): void {
   for (const ping of state.pings) {
     const player = state.players[ping.playerId]
     const ageSeconds = state.elapsedSeconds - ping.createdAtSeconds
-    const progress = Math.max(0, Math.min(1, ageSeconds / PING_LIFETIME_SECONDS))
+    const progress = Math.max(
+      0,
+      Math.min(1, ageSeconds / PING_LIFETIME_SECONDS),
+    )
     const alpha = 1 - progress
     const radius = 18 + progress * 16
     const marker = new Graphics()
@@ -444,6 +441,52 @@ function drawPings(pingContainer: Container, state: GameState): void {
 
     pingContainer.addChild(marker)
   }
+}
+
+function drawPowerIndicator(
+  powerIndicator: Graphics,
+  frogRenderPosition: Vector2,
+  jumpDirection: Vector2,
+  powerRatio: number,
+): void {
+  const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
+  const directionLength = Math.hypot(jumpDirection.x, jumpDirection.y) || 1
+  const offsetX =
+    -(jumpDirection.x / directionLength) * POWER_INDICATOR_DISTANCE
+  const offsetY =
+    -(jumpDirection.y / directionLength) * POWER_INDICATOR_DISTANCE
+  const x = frogRenderPosition.x + offsetX - POWER_INDICATOR_WIDTH / 2
+  const y = frogRenderPosition.y + offsetY - POWER_INDICATOR_HEIGHT / 2
+  const color =
+    clampedPowerRatio >= POWER_INDICATOR_HIGH_POWER_THRESHOLD
+      ? 0xf8d45c
+      : 0x7bdc67
+
+  powerIndicator.clear()
+  powerIndicator.roundRect(
+    x - 2,
+    y - 2,
+    POWER_INDICATOR_WIDTH + 4,
+    POWER_INDICATOR_HEIGHT + 4,
+    POWER_INDICATOR_HEIGHT,
+  )
+  powerIndicator.fill({ color: 0x06100c, alpha: 0.78 })
+  powerIndicator.roundRect(
+    x,
+    y,
+    POWER_INDICATOR_WIDTH,
+    POWER_INDICATOR_HEIGHT,
+    POWER_INDICATOR_HEIGHT / 2,
+  )
+  powerIndicator.fill({ color: 0xd9ffe0, alpha: 0.55 })
+  powerIndicator.roundRect(
+    x,
+    y,
+    POWER_INDICATOR_WIDTH * clampedPowerRatio,
+    POWER_INDICATOR_HEIGHT,
+    POWER_INDICATOR_HEIGHT / 2,
+  )
+  powerIndicator.fill({ color, alpha: 0.92 })
 }
 
 function drawTileLayers(
@@ -459,7 +502,9 @@ function drawTileLayers(
     return movingPlatformsWithTiles
   }
 
-  const movingPlatforms = level.platforms.filter((platform) => platform.movement)
+  const movingPlatforms = level.platforms.filter(
+    (platform) => platform.movement,
+  )
 
   for (const layer of level.tileLayers) {
     const layerContainer = new Container()
@@ -491,20 +536,25 @@ function drawTileLayers(
       const sprite = new Sprite(texture)
       const tileX = (index % layer.width) * level.tileWidth
       const tileY = Math.floor(index / layer.width) * level.tileHeight
-      const movingPlatform = movingPlatforms.find((platform) => intersectsRect(
-        tileX,
-        tileY,
-        level.tileWidth,
-        level.tileHeight,
-        platform.x,
-        platform.y,
-        platform.width,
-        platform.height,
-      ))
+      const movingPlatform = movingPlatforms.find((platform) =>
+        intersectsRect(
+          tileX,
+          tileY,
+          level.tileWidth,
+          level.tileHeight,
+          platform.x,
+          platform.y,
+          platform.width,
+          platform.height,
+        ),
+      )
 
       if (movingPlatform) {
         movingPlatformsWithTiles.add(movingPlatform)
-        const platformPosition = getPlatformPosition(movingPlatform, elapsedSeconds)
+        const platformPosition = getPlatformPosition(
+          movingPlatform,
+          elapsedSeconds,
+        )
         sprite.x = platformPosition.x + tileX - movingPlatform.x
         sprite.y = platformPosition.y + tileY - movingPlatform.y
       } else {
@@ -520,7 +570,10 @@ function drawTileLayers(
   return movingPlatformsWithTiles
 }
 
-function getTilesetForGid(gid: number, tilesets: LoadedTileset[]): LoadedTileset | null {
+function getTilesetForGid(
+  gid: number,
+  tilesets: LoadedTileset[],
+): LoadedTileset | null {
   for (let index = tilesets.length - 1; index >= 0; index -= 1) {
     const tileset = tilesets[index]
     if (tileset && gid >= tileset.firstgid) {
@@ -619,7 +672,10 @@ function setFrogAnimation(
   return nextAnimation
 }
 
-function setFrogFacing(frog: AnimatedSprite, horizontalDirection: number): void {
+function setFrogFacing(
+  frog: AnimatedSprite,
+  horizontalDirection: number,
+): void {
   if (Math.abs(horizontalDirection) <= FROG_FACING_DEAD_ZONE) {
     return
   }
@@ -640,7 +696,12 @@ function drawLevel(
   background.rect(0, 0, level.worldWidth, level.worldHeight)
   background.fill(level.backgroundColor)
 
-  const movingPlatformsWithTiles = drawTileLayers(tiles, tilesets, level, elapsedSeconds)
+  const movingPlatformsWithTiles = drawTileLayers(
+    tiles,
+    tilesets,
+    level,
+    elapsedSeconds,
+  )
 
   platforms.clear()
   for (const platform of level.platforms) {
@@ -658,13 +719,9 @@ export async function startGameRuntime(
   params: StartGameRuntimeParams,
 ): Promise<GameRuntime> {
   const defaultLevel = getDefaultLevel()
-  const powerBarX = (worldWidth - POWER_BAR_FRAME_WIDTH) / 2
-  const powerBarY =
-    worldHeight - POWER_BAR_FRAME_HEIGHT - POWER_BAR_BOTTOM_OFFSET
   const defaultTilesets = await loadTilesets(defaultLevel)
   const frogTexture = await Assets.load<Texture>(frogSpritesheetUrl)
   const aimTexture = await Assets.load<Texture>(aimHudUrl)
-  const powerbarTexture = await Assets.load<Texture>(powerbarHudUrl)
   const app = new Application()
   await app.init({
     width: worldWidth,
@@ -731,25 +788,8 @@ export async function startGameRuntime(
   const pingContainer = new Container()
   stage.addChild(pingContainer)
 
-  const powerBarBacking = new Graphics()
-  powerBarBacking.roundRect(
-    powerBarX - POWER_BAR_BACKING_PADDING_X,
-    powerBarY - POWER_BAR_BACKING_PADDING_Y,
-    POWER_BAR_FRAME_WIDTH + POWER_BAR_BACKING_PADDING_X * 2,
-    POWER_BAR_FRAME_HEIGHT + POWER_BAR_BACKING_PADDING_Y * 2,
-    24,
-  )
-  powerBarBacking.fill({ color: 0x06100c, alpha: 0.72 })
-  stage.addChild(powerBarBacking)
-
-  const powerBarFill = new Graphics()
-  stage.addChild(powerBarFill)
-
-  const powerBarFrame = new Sprite(powerbarTexture)
-  powerBarFrame.position.set(powerBarX, powerBarY)
-  powerBarFrame.width = POWER_BAR_FRAME_WIDTH
-  powerBarFrame.height = POWER_BAR_FRAME_HEIGHT
-  stage.addChild(powerBarFrame)
+  const powerIndicator = new Graphics()
+  stage.addChild(powerIndicator)
 
   let latestState: GameState | null = null
   let myPlayerId: PlayerId | null = null
@@ -834,7 +874,10 @@ export async function startGameRuntime(
 
   roomControls.select.addEventListener('change', handleLevelChange)
   playerRoleBanner.nameInput.addEventListener('change', sendPlayerName)
-  playerRoleBanner.nameInput.addEventListener('keydown', handlePlayerNameKeyDown)
+  playerRoleBanner.nameInput.addEventListener(
+    'keydown',
+    handlePlayerNameKeyDown,
+  )
 
   params.room.onMessage('joined', (message: JoinedMessage) => {
     myPlayerId = message.playerId
@@ -1037,18 +1080,17 @@ export async function startGameRuntime(
       (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
     const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
 
-    powerBarFill.clear()
-    powerBarBacking.visible = gameState.phase !== 'finished'
-    powerBarFrame.visible = gameState.phase !== 'finished'
-    powerBarFill.visible = gameState.phase !== 'finished'
-    powerBarFill.roundRect(
-      powerBarX + POWER_BAR_FILL_X_OFFSET,
-      powerBarY + POWER_BAR_FILL_Y_OFFSET,
-      POWER_BAR_FILL_WIDTH * clampedPowerRatio,
-      POWER_BAR_FILL_HEIGHT,
-      POWER_BAR_FILL_HEIGHT / 2,
-    )
-    powerBarFill.fill(0x7bdc67)
+    powerIndicator.visible = gameState.phase === 'charging'
+    if (powerIndicator.visible) {
+      drawPowerIndicator(
+        powerIndicator,
+        frogRenderPosition,
+        gameState.jumpDirection,
+        clampedPowerRatio,
+      )
+    } else {
+      powerIndicator.clear()
+    }
     drawPings(pingContainer, gameState)
 
     keyboard.state.justPressed.clear()
@@ -1058,7 +1100,10 @@ export async function startGameRuntime(
     destroy: () => {
       roomControls.select.removeEventListener('change', handleLevelChange)
       playerRoleBanner.nameInput.removeEventListener('change', sendPlayerName)
-      playerRoleBanner.nameInput.removeEventListener('keydown', handlePlayerNameKeyDown)
+      playerRoleBanner.nameInput.removeEventListener(
+        'keydown',
+        handlePlayerNameKeyDown,
+      )
       roomControls.copyInviteButton.hidden = true
       keyboard.destroy()
       mouse.destroy()
