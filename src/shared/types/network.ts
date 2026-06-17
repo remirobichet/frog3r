@@ -30,6 +30,11 @@ export interface PingInputMessage {
   position: Vector2
 }
 
+export interface DebugTeleportInputMessage {
+  type: 'debugTeleport'
+  position: Vector2
+}
+
 export type ClientInputMessage =
   | AimInputMessage
   | ChargeInputMessage
@@ -37,6 +42,7 @@ export type ClientInputMessage =
   | SelectLevelInputMessage
   | SetNameInputMessage
   | PingInputMessage
+  | DebugTeleportInputMessage
 
 export interface JoinedMessage {
   playerId: PlayerId

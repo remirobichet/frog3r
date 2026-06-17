@@ -538,6 +538,27 @@ export function updateDirection(
   }
 }
 
+export function debugTeleportFrog(
+  state: GameState,
+  position: Vector2,
+  level: LevelData,
+): GameState {
+  return {
+    ...state,
+    phase: 'airborne',
+    frog: {
+      position: {
+        x: clamp(position.x, frogRadius, level.worldWidth - frogRadius),
+        y: clamp(position.y, 0, level.worldHeight),
+      },
+      velocity: { x: 0, y: 0 },
+    },
+    jumpPower: minJumpPower,
+    midAirJumpUsed: false,
+    resetNotice: null,
+  }
+}
+
 export function updateCharge(
   state: GameState,
   deltaSeconds: number,

@@ -45,6 +45,7 @@ interface MouseState {
   y: number
   isInsideCanvas: boolean
   pendingPingPosition: Vector2 | null
+  pendingDebugTeleportPosition: Vector2 | null
 }
 
 interface StartGameRuntimeParams {
@@ -193,6 +194,7 @@ function setupMouse(canvas: HTMLCanvasElement, level: LevelData): MouseSetup {
     y: level.spawn.y - 160,
     isInsideCanvas: false,
     pendingPingPosition: null,
+    pendingDebugTeleportPosition: null,
   }
 
   const getCanvasPosition = (event: PointerEvent): Vector2 => {
@@ -218,6 +220,17 @@ function setupMouse(canvas: HTMLCanvasElement, level: LevelData): MouseSetup {
     state.x = position.x
     state.y = position.y
     state.isInsideCanvas = true
+
+    if (event.button === 1 && import.meta.env.DEV) {
+      event.preventDefault()
+      state.pendingDebugTeleportPosition = position
+      return
+    }
+
+    if (event.button !== 0) {
+      return
+    }
+
     state.pendingPingPosition = position
   }
 
@@ -1013,6 +1026,14 @@ export async function startGameRuntime(
         position: mouse.state.pendingPingPosition,
       })
       mouse.state.pendingPingPosition = null
+    }
+
+    if (mouse.state.pendingDebugTeleportPosition) {
+      sendInput({
+        type: 'debugTeleport',
+        position: mouse.state.pendingDebugTeleportPosition,
+      })
+      mouse.state.pendingDebugTeleportPosition = null
     }
 
     if (myRole === 'direction' && gameState.phase === 'charging') {

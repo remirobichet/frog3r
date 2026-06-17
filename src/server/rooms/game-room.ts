@@ -7,6 +7,7 @@ import type { ClientInputMessage, JoinedMessage, StateMessage } from '../../shar
 import type { GameState, PlayerId, PlayerRole, Vector2 } from '../../shared/types/game-state'
 import {
   createInitialGameState,
+  debugTeleportFrog,
   launchJump,
   simulateTick,
   triggerMidAirJump,
@@ -21,6 +22,7 @@ interface RoomOptions {
 const playerOrder: PlayerId[] = ['player1', 'player2', 'player3']
 const pingLifetimeSeconds = 2
 const maxPlayerNameLength = 18
+const allowDevelopmentInputs = process.env.NODE_ENV !== 'production'
 
 function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
   if (state.roles.player1 === role) {
@@ -141,6 +143,18 @@ export class GameRoom extends Room {
             },
           ],
         }
+        this.broadcastState()
+        return
+      }
+
+      if (input.type === 'debugTeleport') {
+        if (!allowDevelopmentInputs) {
+          return
+        }
+
+        const level = getLevelById(this.currentLevelId)
+        this.gameState = debugTeleportFrog(this.gameState, input.position, level)
+        this.resetInputState()
         this.broadcastState()
         return
       }
