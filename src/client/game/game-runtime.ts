@@ -95,6 +95,7 @@ interface LoadedTileset {
   firstgid: number
   texture: Texture
   columns: number
+  frameTextures: Map<number, Texture>
 }
 
 interface PlayerRoleBanner {
@@ -434,7 +435,7 @@ function getPlayerRolesSummary(state: GameState): string {
 }
 
 function drawPings(pingContainer: Container, state: GameState): void {
-  pingContainer.removeChildren()
+  clearContainerChildren(pingContainer)
 
   for (const ping of state.pings) {
     const player = state.players[ping.playerId]
@@ -454,6 +455,34 @@ function drawPings(pingContainer: Container, state: GameState): void {
 
     pingContainer.addChild(marker)
   }
+}
+
+function clearContainerChildren(container: Container): void {
+  for (const child of container.removeChildren()) {
+    child.destroy({ children: true, context: true })
+  }
+}
+
+function getTileTexture(
+  tileset: LoadedTileset,
+  tileIndex: number,
+  tileWidth: number,
+  tileHeight: number,
+): Texture {
+  const cachedTexture = tileset.frameTextures.get(tileIndex)
+  if (cachedTexture) {
+    return cachedTexture
+  }
+
+  const sourceX = (tileIndex % tileset.columns) * tileWidth
+  const sourceY = Math.floor(tileIndex / tileset.columns) * tileHeight
+  const texture = new Texture({
+    source: tileset.texture.source,
+    frame: new Rectangle(sourceX, sourceY, tileWidth, tileHeight),
+  })
+
+  tileset.frameTextures.set(tileIndex, texture)
+  return texture
 }
 
 function drawPowerIndicator(
@@ -508,7 +537,7 @@ function drawTileLayers(
   level: LevelData,
   elapsedSeconds: number,
 ): Set<Platform> {
-  tileContainer.removeChildren()
+  clearContainerChildren(tileContainer)
   const movingPlatformsWithTiles = new Set<Platform>()
 
   if (tilesets.length === 0) {
@@ -535,17 +564,12 @@ function drawTileLayers(
       }
 
       const tileIndex = gid - tileset.firstgid
-      const sourceX = (tileIndex % tileset.columns) * level.tileWidth
-      const sourceY = Math.floor(tileIndex / tileset.columns) * level.tileHeight
-      const texture = new Texture({
-        source: tileset.texture.source,
-        frame: new Rectangle(
-          sourceX,
-          sourceY,
-          level.tileWidth,
-          level.tileHeight,
-        ),
-      })
+      const texture = getTileTexture(
+        tileset,
+        tileIndex,
+        level.tileWidth,
+        level.tileHeight,
+      )
       const sprite = new Sprite(texture)
       const tileX = (index % layer.width) * level.tileWidth
       const tileY = Math.floor(index / layer.width) * level.tileHeight
@@ -613,6 +637,7 @@ async function loadTilesets(level: LevelData): Promise<LoadedTileset[]> {
         firstgid: 1,
         texture,
         columns: Math.floor(texture.width / level.tileWidth),
+        frameTextures: new Map<number, Texture>(),
       },
     ]
   }
@@ -629,6 +654,7 @@ async function loadTilesets(level: LevelData): Promise<LoadedTileset[]> {
         firstgid: tileset.firstgid,
         texture,
         columns: Math.floor(texture.width / level.tileWidth),
+        frameTextures: new Map<number, Texture>(),
       }
     }),
   )
