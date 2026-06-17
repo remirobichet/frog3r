@@ -8,12 +8,15 @@ describe('level registry', () => {
   it('registers the Tiled levels', () => {
     const levels = getAllLevels()
 
-    expect(levels).toHaveLength(4)
+    expect(levels).toHaveLength(7)
     expect(levels.map((level) => level.id)).toEqual([
       'level_0',
       'level_1-1',
       'level_1-2',
       'level_1-3',
+      'level_2-1',
+      'level_2-2',
+      'level_2-3',
     ])
   })
 
