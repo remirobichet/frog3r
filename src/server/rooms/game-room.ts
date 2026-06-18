@@ -36,6 +36,18 @@ function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
   return 'player3'
 }
 
+function getInputPlayerForRole(
+  state: GameState,
+  playerId: PlayerId,
+  role: PlayerRole,
+): PlayerId {
+  if (allowDevelopmentInputs) {
+    return findPlayerByRole(state, role)
+  }
+
+  return playerId
+}
+
 function sanitizePlayerName(name: string, playerId: PlayerId): string {
   const trimmedName = name.trim().replace(/\s+/g, ' ')
   if (!trimmedName) {
@@ -103,12 +115,14 @@ export class GameRoom extends Room {
       }
 
       if (input.type === 'aim') {
-        this.directionIntent[playerId] = input.direction
+        const directionPlayer = getInputPlayerForRole(this.gameState, playerId, 'direction')
+        this.directionIntent[directionPlayer] = input.direction
         return
       }
 
       if (input.type === 'charge') {
-        this.chargingIntent[playerId] = input.active
+        const powerPlayer = getInputPlayerForRole(this.gameState, playerId, 'power')
+        this.chargingIntent[powerPlayer] = input.active
         return
       }
 
@@ -159,7 +173,8 @@ export class GameRoom extends Room {
         return
       }
 
-      this.miniJumpQueued[playerId] = true
+      const midJumpPlayer = getInputPlayerForRole(this.gameState, playerId, 'midJump')
+      this.miniJumpQueued[midJumpPlayer] = true
     })
 
     this.setSimulationInterval(() => {

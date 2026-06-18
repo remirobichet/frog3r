@@ -872,6 +872,10 @@ export async function startGameRuntime(
     return state.roles[myPlayerId]
   }
 
+  function canControlRole(currentRole: PlayerRole | 'spectator', role: PlayerRole): boolean {
+    return currentRole === role || import.meta.env.DEV
+  }
+
   function sendInput(input: ClientInputMessage): void {
     params.room.send('input', input)
   }
@@ -1062,7 +1066,7 @@ export async function startGameRuntime(
       mouse.state.pendingDebugTeleportPosition = null
     }
 
-    if (myRole === 'direction' && gameState.phase === 'charging') {
+    if (canControlRole(myRole, 'direction') && gameState.phase === 'charging') {
       if (now - lastAimSendAt >= 50) {
         const directionInput = getDirectionalVector(
           mouse.state,
@@ -1076,7 +1080,7 @@ export async function startGameRuntime(
       }
     }
 
-    if (myRole === 'power') {
+    if (canControlRole(myRole, 'power')) {
       const charging = keyboard.state.pressed.has('Space')
       if (charging !== chargingSent) {
         sendInput({
@@ -1093,7 +1097,7 @@ export async function startGameRuntime(
       chargingSent = false
     }
 
-    if (myRole === 'midJump' && keyboard.state.justPressed.has('Space')) {
+    if (canControlRole(myRole, 'midJump') && keyboard.state.justPressed.has('Space')) {
       sendInput({
         type: 'miniJump',
       })
