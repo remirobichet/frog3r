@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { minJumpPower } from '@shared/constants/game'
+import { frogRadius, minJumpPower } from '@shared/constants/game'
 import { getDefaultLevel } from '@shared/levels'
 import {
   createInitialGameState,
@@ -130,6 +130,102 @@ describe('gameplay basics', () => {
     expect(state.jumpDirection.x).toBeLessThan(0)
   })
 
+  it('stops slippery ground slide against platform walls', () => {
+    const wall = {
+      x: 180,
+      y: level.spawn.y - 60,
+      width: 40,
+      height: 60,
+      slippery: false,
+      trampoline: false,
+      trap: false,
+    }
+    const slipperyLevel = {
+      ...level,
+      spawn: { x: 150, y: level.spawn.y },
+      platforms: [
+        {
+          x: 0,
+          y: level.spawn.y,
+          width: 260,
+          height: 40,
+          slippery: true,
+          trampoline: false,
+          trap: false,
+        },
+        wall,
+      ],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+
+    const state = simulateTick(
+      {
+        ...createInitialGameState(slipperyLevel),
+        frog: {
+          position: slipperyLevel.spawn,
+          velocity: { x: 600, y: 0 },
+        },
+      },
+      1 / 60,
+      slipperyLevel,
+    )
+
+    expect(state.phase).toBe('charging')
+    expect(state.frog.position.x).toBe(wall.x - frogRadius)
+    expect(state.frog.velocity.x).toBe(0)
+  })
+
+  it('stops fast vertical side crossings against platform walls', () => {
+    const wall = {
+      x: 180,
+      y: 390,
+      width: 40,
+      height: 40,
+      slippery: false,
+      trampoline: false,
+      trap: false,
+    }
+    const wallLevel = {
+      ...level,
+      spawn: { x: 150, y: 310 },
+      platforms: [wall],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+
+    const state = simulateTick(
+      {
+        ...createInitialGameState(wallLevel),
+        phase: 'airborne',
+        frog: {
+          position: wallLevel.spawn,
+          velocity: { x: 600, y: 9000 },
+        },
+      },
+      1 / 60,
+      wallLevel,
+    )
+
+    expect(state.phase).toBe('airborne')
+    expect(state.frog.position.x).toBe(wall.x - frogRadius)
+    expect(state.frog.velocity.x).toBe(0)
+  })
+
   it('bounces the frog upward from trampoline platforms', () => {
     const trampolineLevel = {
       ...level,
@@ -170,6 +266,52 @@ describe('gameplay basics', () => {
     expect(state.phase).toBe('airborne')
     expect(state.frog.position.y).toBe(level.spawn.y)
     expect(state.frog.velocity.y).toBeLessThan(-500)
+    expect(state.jumpCount).toBe(0)
+  })
+
+  it('bounces the frog away from the side of trampoline platforms', () => {
+    const platform = {
+      x: 200,
+      y: 300,
+      width: 120,
+      height: 80,
+      slippery: false,
+      trampoline: true,
+      trap: false,
+    }
+    const trampolineLevel = {
+      ...level,
+      spawn: { x: 150, y: 330 },
+      platforms: [platform],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+
+    const state = simulateTick(
+      {
+        ...createInitialGameState(trampolineLevel),
+        phase: 'airborne',
+        frog: {
+          position: trampolineLevel.spawn,
+          velocity: { x: 1800, y: 120 },
+        },
+      },
+      1 / 60,
+      trampolineLevel,
+    )
+
+    expect(state.phase).toBe('airborne')
+    expect(state.frog.position.x).toBe(platform.x - frogRadius)
+    expect(state.frog.position.y).toBeGreaterThan(trampolineLevel.spawn.y)
+    expect(state.frog.velocity.x).toBeCloseTo(-1350)
+    expect(state.frog.velocity.y).toBeGreaterThan(120)
     expect(state.jumpCount).toBe(0)
   })
 
