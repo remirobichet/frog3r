@@ -3,7 +3,15 @@ export interface Vector2 {
   y: number
 }
 
-export type PlayerId = 'player1' | 'player2' | 'player3'
+export type GameMode = 'coop' | 'versus'
+export type CoopPlayerId = 'player1' | 'player2' | 'player3'
+export type PlayerId =
+  | CoopPlayerId
+  | 'player4'
+  | 'player5'
+  | 'player6'
+  | 'player7'
+  | 'player8'
 export type PlayerRole = 'direction' | 'power' | 'midJump'
 export type GamePhase = 'charging' | 'airborne' | 'resetting' | 'finished'
 
@@ -29,18 +37,44 @@ export interface ResetNoticeState {
   remainingSeconds: number
 }
 
-export interface GameState {
+export interface FrogRunState {
   elapsedSeconds: number
   phase: GamePhase
   frog: FrogBodyState
   activeDirection: Vector2
   jumpDirection: Vector2
   jumpPower: number
-  roles: Record<PlayerId, PlayerRole>
-  players: Record<PlayerId, PlayerProfile>
-  pings: PlayerPing[]
   midAirJumpUsed: boolean
   jumpCount: number
   finishedAtJumpCount: number | null
   resetNotice: ResetNoticeState | null
+}
+
+export interface VersusPlayerRun {
+  run: FrogRunState
+  finishedAtSeconds: number | null
+  finishRank: number | null
+}
+
+export interface VersusResultEntry {
+  playerId: PlayerId
+  name: string
+  finishedAtSeconds: number
+  jumpCount: number
+  rank: number
+}
+
+export interface VersusState {
+  status: 'running' | 'finished'
+  runs: Partial<Record<PlayerId, VersusPlayerRun>>
+  winnerPlayerId: PlayerId | null
+  results: VersusResultEntry[]
+}
+
+export interface GameState extends FrogRunState {
+  mode: GameMode
+  roles: Record<CoopPlayerId, PlayerRole>
+  players: Record<PlayerId, PlayerProfile>
+  pings: PlayerPing[]
+  versus: VersusState | null
 }

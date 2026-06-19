@@ -95,6 +95,48 @@
         align-items: center;
       }
 
+      .mode-field {
+        display: grid;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+
+      .mode-label {
+        color: rgba(222, 241, 209, 0.72);
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      #game-mode-select {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(186, 238, 171, 0.16);
+        border-radius: 14px;
+        outline: none;
+        background: #10231b;
+        color: #f3fbe8;
+        color-scheme: dark;
+        font-family: var(--font-body);
+        font-weight: 800;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      #game-mode-select option {
+        background: #0b1813;
+        color: #f3fbe8;
+      }
+
+      #game-mode-select:focus-visible {
+        border-color: rgba(188, 232, 175, 0.45);
+        background: rgba(243, 252, 233, 0.11);
+        box-shadow: 0 0 0 4px rgba(112, 190, 90, 0.14);
+      }
+
       #invite-code {
         width: 100%;
         min-width: 0;
@@ -325,8 +367,7 @@
         position: absolute;
         left: 50%;
         top: 50%;
-        width: min(420px, calc(100vw - 32px));
-        padding: 18px 22px;
+        padding: 32px;
         border-radius: 22px;
         color: #f6ffe9;
         font-family: var(--font-display);
@@ -335,6 +376,7 @@
         letter-spacing: -0.04em;
         text-align: center;
         text-wrap: balance;
+        white-space: pre-line;
         transform: translate(-50%, -50%);
         pointer-events: none;
       }
@@ -387,7 +429,7 @@
         border: 1px solid rgba(186, 238, 171, 0.16);
         border-radius: 14px;
         outline: none;
-        background: rgba(243, 252, 233, 0.08);
+        background: #10231b;
         color: #f3fbe8;
         color-scheme: dark;
         font-family: var(--font-body);
@@ -516,6 +558,13 @@
           <p id="lobby-subtitle">
             Share one frog. Split the jump. Rotate roles after every landing.
           </p>
+          <label class="mode-field" for="game-mode-select">
+            <span class="mode-label">Mode</span>
+            <select id="game-mode-select" autocomplete="off">
+              <option value="coop">Coop - shared frog</option>
+              <option value="versus">Versus - solo duel race</option>
+            </select>
+          </label>
           <div class="invite-row">
             <input
               id="invite-code"
@@ -599,6 +648,10 @@
               <div class="status-item">
                 <span class="status-label">Creator</span>
                 <span id="status-creator" class="status-value">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Mode</span>
+                <span id="status-mode" class="status-value">-</span>
               </div>
               <div class="status-item">
                 <span class="status-label">Level</span>

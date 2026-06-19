@@ -4,27 +4,107 @@ import type { Client } from 'colyseus'
 import { fixedTimestepMs } from '../../shared/constants/game'
 import { availableLevels, defaultLevelId, getLevelById } from '../../shared/levels'
 import type { ClientInputMessage, JoinedMessage, StateMessage } from '../../shared/types/network'
-import type { GameState, PlayerId, PlayerRole, Vector2 } from '../../shared/types/game-state'
+import type {
+  CoopPlayerId,
+  GameMode,
+  GameState,
+  PlayerId,
+  PlayerRole,
+  Vector2,
+  VersusPlayerRun,
+  VersusState,
+} from '../../shared/types/game-state'
 import {
+  createInitialFrogRunState,
   createInitialGameState,
   debugTeleportFrog,
   launchJump,
+  simulateFrogRunTick,
   simulateTick,
   triggerMidAirJump,
   updateCharge,
   updateDirection,
 } from '../../shared/utils/gameplay'
+import type { LevelData } from '../../shared/types/level'
 
 interface RoomOptions {
   inviteCode: string
+  mode?: GameMode
 }
 
-const playerOrder: PlayerId[] = ['player1', 'player2', 'player3']
+const coopPlayerOrder: CoopPlayerId[] = ['player1', 'player2', 'player3']
+const playerOrder: PlayerId[] = [
+  'player1',
+  'player2',
+  'player3',
+  'player4',
+  'player5',
+  'player6',
+  'player7',
+  'player8',
+]
+const maxClientsByMode: Record<GameMode, number> = {
+  coop: 3,
+  versus: 8,
+}
 const pingLifetimeSeconds = 2
 const maxPlayerNameLength = 18
 const allowDevelopmentInputs = process.env.NODE_ENV !== 'production'
 
-function findPlayerByRole(state: GameState, role: PlayerRole): PlayerId {
+function createDirectionIntent(): Record<PlayerId, Vector2> {
+  return {
+    player1: { x: 0, y: -1 },
+    player2: { x: 0, y: -1 },
+    player3: { x: 0, y: -1 },
+    player4: { x: 0, y: -1 },
+    player5: { x: 0, y: -1 },
+    player6: { x: 0, y: -1 },
+    player7: { x: 0, y: -1 },
+    player8: { x: 0, y: -1 },
+  }
+}
+
+function createBooleanIntent(value: boolean): Record<PlayerId, boolean> {
+  return {
+    player1: value,
+    player2: value,
+    player3: value,
+    player4: value,
+    player5: value,
+    player6: value,
+    player7: value,
+    player8: value,
+  }
+}
+
+function createVersusState(): VersusState {
+  return {
+    status: 'running',
+    runs: {},
+    winnerPlayerId: null,
+    results: [],
+  }
+}
+
+function createVersusPlayerRun(
+  level: LevelData,
+  elapsedSeconds = 0,
+): VersusPlayerRun {
+  return {
+    run: {
+      ...createInitialFrogRunState(level),
+      elapsedSeconds,
+    },
+    finishedAtSeconds: null,
+    finishRank: null,
+  }
+}
+
+function isCoopPlayerId(playerId: PlayerId): playerId is CoopPlayerId {
+  return coopPlayerOrder.includes(playerId as CoopPlayerId)
+}
+
+function findPlayerByRole(state: GameState, role: PlayerRole): CoopPlayerId {
   if (state.roles.player1 === role) {
     return 'player1'
   }
@@ -40,12 +120,12 @@ function getInputPlayerForRole(
   state: GameState,
   playerId: PlayerId,
   role: PlayerRole,
-): PlayerId {
+): CoopPlayerId | null {
   if (allowDevelopmentInputs) {
     return findPlayerByRole(state, role)
   }
 
-  return playerId
+  return isCoopPlayerId(playerId) ? playerId : null
 }
 
 function sanitizePlayerName(name: string, playerId: PlayerId): string {
@@ -62,41 +142,41 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-function getOpenPlayerSlot(sessionToPlayer: Map<string, PlayerId>): PlayerId | null {
+function getOpenPlayerSlot(
+  sessionToPlayer: Map<string, PlayerId>,
+  mode: GameMode,
+): PlayerId | null {
   const assignedPlayers = new Set(sessionToPlayer.values())
-  return playerOrder.find((playerId) => !assignedPlayers.has(playerId)) ?? null
+  const availableSlots = mode === 'coop' ? coopPlayerOrder : playerOrder
+
+  return availableSlots.find((playerId) => !assignedPlayers.has(playerId)) ?? null
 }
 
 export class GameRoom extends Room {
-  public maxClients = 3
+  public maxClients = maxClientsByMode.coop
 
   private inviteCode = ''
+  private mode: GameMode = 'coop'
   private currentLevelId = defaultLevelId
   private gameState: GameState = createInitialGameState(getLevelById(defaultLevelId))
   private sessionToPlayer = new Map<string, PlayerId>()
   private creatorSessionId: string | null = null
   private roundRevision = 0
-  private directionIntent: Record<PlayerId, Vector2> = {
-    player1: { x: 0, y: -1 },
-    player2: { x: 0, y: -1 },
-    player3: { x: 0, y: -1 },
-  }
-  private chargingIntent: Record<PlayerId, boolean> = {
-    player1: false,
-    player2: false,
-    player3: false,
-  }
-  private miniJumpQueued: Record<PlayerId, boolean> = {
-    player1: false,
-    player2: false,
-    player3: false,
-  }
-  private wasCharging = false
+  private directionIntent: Record<PlayerId, Vector2> = createDirectionIntent()
+  private chargingIntent: Record<PlayerId, boolean> = createBooleanIntent(false)
+  private miniJumpQueued: Record<PlayerId, boolean> = createBooleanIntent(false)
+  private wasCharging: Record<PlayerId, boolean> = createBooleanIntent(false)
 
   public onCreate(options: RoomOptions): void {
     this.inviteCode = options.inviteCode
-    this.setMetadata({ inviteCode: this.inviteCode })
-    this.gameState = createInitialGameState(getLevelById(this.currentLevelId))
+    this.mode = options.mode === 'versus' ? 'versus' : 'coop'
+    this.maxClients = maxClientsByMode[this.mode]
+    this.setMetadata({
+      inviteCode: this.inviteCode,
+      mode: this.mode,
+      maxClients: this.maxClients,
+    })
+    this.gameState = createInitialGameState(getLevelById(this.currentLevelId), this.mode)
 
     this.onMessage('input', (client: Client, input: ClientInputMessage) => {
       const playerId = this.sessionToPlayer.get(client.sessionId)
@@ -115,14 +195,12 @@ export class GameRoom extends Room {
       }
 
       if (input.type === 'aim') {
-        const directionPlayer = getInputPlayerForRole(this.gameState, playerId, 'direction')
-        this.directionIntent[directionPlayer] = input.direction
+        this.handleAimInput(playerId, input.direction)
         return
       }
 
       if (input.type === 'charge') {
-        const powerPlayer = getInputPlayerForRole(this.gameState, playerId, 'power')
-        this.chargingIntent[powerPlayer] = input.active
+        this.handleChargeInput(playerId, input.active)
         return
       }
 
@@ -166,15 +244,12 @@ export class GameRoom extends Room {
           return
         }
 
-        const level = getLevelById(this.currentLevelId)
-        this.gameState = debugTeleportFrog(this.gameState, input.position, level)
-        this.resetInputState()
+        this.handleDebugTeleport(playerId, input.position)
         this.broadcastState()
         return
       }
 
-      const midJumpPlayer = getInputPlayerForRole(this.gameState, playerId, 'midJump')
-      this.miniJumpQueued[midJumpPlayer] = true
+      this.handleMiniJumpInput(playerId)
     })
 
     this.setSimulationInterval(() => {
@@ -188,7 +263,7 @@ export class GameRoom extends Room {
       this.creatorSessionId = client.sessionId
     }
 
-    const playerId = getOpenPlayerSlot(this.sessionToPlayer)
+    const playerId = getOpenPlayerSlot(this.sessionToPlayer, this.mode)
     if (!playerId) {
       void client.leave()
       return
@@ -196,10 +271,14 @@ export class GameRoom extends Room {
 
     this.sessionToPlayer.set(client.sessionId, playerId)
     this.gameState = this.setPlayerConnected(this.gameState, playerId, true)
+    if (this.mode === 'versus') {
+      this.resetVersusRun(playerId)
+    }
 
     const joinedMessage: JoinedMessage = {
       playerId,
       inviteCode: this.inviteCode,
+      mode: this.mode,
     }
     client.send('joined', joinedMessage)
     this.broadcastState()
@@ -219,13 +298,86 @@ export class GameRoom extends Room {
         .find((connectedClient) => connectedClient.sessionId !== client.sessionId)?.sessionId ?? null
     }
 
-    this.chargingIntent[playerId] = false
-    this.miniJumpQueued[playerId] = false
-    this.directionIntent[playerId] = { x: 0, y: -1 }
+    this.resetPlayerInputState(playerId)
+    this.finishVersusIfAllConnectedPlayersAreDone()
     this.broadcastState()
   }
 
+  private handleAimInput(playerId: PlayerId, direction: Vector2): void {
+    if (this.mode === 'versus') {
+      this.directionIntent[playerId] = direction
+      return
+    }
+
+    const directionPlayer = getInputPlayerForRole(this.gameState, playerId, 'direction')
+    if (directionPlayer) {
+      this.directionIntent[directionPlayer] = direction
+    }
+  }
+
+  private handleChargeInput(playerId: PlayerId, active: boolean): void {
+    if (this.mode === 'versus') {
+      this.chargingIntent[playerId] = active
+      return
+    }
+
+    const powerPlayer = getInputPlayerForRole(this.gameState, playerId, 'power')
+    if (powerPlayer) {
+      this.chargingIntent[powerPlayer] = active
+    }
+  }
+
+  private handleMiniJumpInput(playerId: PlayerId): void {
+    if (this.mode === 'versus') {
+      this.miniJumpQueued[playerId] = true
+      return
+    }
+
+    const midJumpPlayer = getInputPlayerForRole(this.gameState, playerId, 'midJump')
+    if (midJumpPlayer) {
+      this.miniJumpQueued[midJumpPlayer] = true
+    }
+  }
+
+  private handleDebugTeleport(playerId: PlayerId, position: Vector2): void {
+    const level = getLevelById(this.currentLevelId)
+    if (this.mode === 'versus') {
+      const versus = this.gameState.versus ?? createVersusState()
+      const playerRun = versus.runs[playerId] ?? createVersusPlayerRun(
+        level,
+        this.gameState.elapsedSeconds,
+      )
+      this.gameState = {
+        ...this.gameState,
+        versus: {
+          ...versus,
+          runs: {
+            ...versus.runs,
+            [playerId]: {
+              ...playerRun,
+              run: debugTeleportFrog(playerRun.run, position, level),
+            },
+          },
+        },
+      }
+      this.resetPlayerInputState(playerId)
+      return
+    }
+
+    this.gameState = debugTeleportFrog(this.gameState, position, level)
+    this.resetInputState()
+  }
+
   private tick(deltaSeconds: number): void {
+    if (this.mode === 'versus') {
+      this.tickVersus(deltaSeconds)
+      return
+    }
+
+    this.tickCoop(deltaSeconds)
+  }
+
+  private tickCoop(deltaSeconds: number): void {
     const level = getLevelById(this.currentLevelId)
 
     if (this.gameState.phase === 'resetting') {
@@ -247,10 +399,14 @@ export class GameRoom extends Room {
     this.gameState = updateDirection(this.gameState, directionInput)
     this.gameState = updateCharge(this.gameState, deltaSeconds, isCharging)
 
-    if (this.wasCharging && !isCharging && this.gameState.phase === 'charging') {
+    if (
+      this.wasCharging[powerPlayer] &&
+      !isCharging &&
+      this.gameState.phase === 'charging'
+    ) {
       this.gameState = launchJump(this.gameState)
     }
-    this.wasCharging = isCharging
+    this.wasCharging[powerPlayer] = isCharging
 
     if (this.miniJumpQueued[midJumpPlayer]) {
       this.gameState = triggerMidAirJump(this.gameState)
@@ -273,6 +429,114 @@ export class GameRoom extends Room {
     }
   }
 
+  private tickVersus(deltaSeconds: number): void {
+    const level = getLevelById(this.currentLevelId)
+    const nextElapsedSeconds = this.gameState.elapsedSeconds + deltaSeconds
+    const versus = this.gameState.versus ?? createVersusState()
+
+    if (versus.status === 'finished') {
+      this.gameState = this.expirePings({
+        ...this.gameState,
+        elapsedSeconds: nextElapsedSeconds,
+      })
+      return
+    }
+
+    const runs = { ...versus.runs }
+    let results = versus.results
+    let winnerPlayerId = versus.winnerPlayerId
+
+    for (const playerId of playerOrder) {
+      if (!this.gameState.players[playerId].connected) {
+        continue
+      }
+
+      const currentPlayerRun = runs[playerId] ?? createVersusPlayerRun(
+        level,
+        this.gameState.elapsedSeconds,
+      )
+      if (currentPlayerRun.finishedAtSeconds !== null) {
+        runs[playerId] = currentPlayerRun
+        continue
+      }
+
+      let run = {
+        ...currentPlayerRun.run,
+        elapsedSeconds: this.gameState.elapsedSeconds,
+      }
+      const directionInput = this.directionIntent[playerId]
+      const isCharging = this.chargingIntent[playerId]
+      const phaseBeforeSimulation = run.phase
+
+      run = updateDirection(run, directionInput)
+      run = updateCharge(run, deltaSeconds, isCharging)
+
+      if (this.wasCharging[playerId] && !isCharging && run.phase === 'charging') {
+        run = launchJump(run)
+      }
+      this.wasCharging[playerId] = isCharging
+
+      if (this.miniJumpQueued[playerId]) {
+        run = triggerMidAirJump(run)
+        this.miniJumpQueued[playerId] = false
+      }
+
+      run = {
+        ...simulateFrogRunTick(run, deltaSeconds, level),
+        elapsedSeconds: nextElapsedSeconds,
+      }
+      if (
+        run.phase === 'resetting'
+        || (
+          phaseBeforeSimulation !== 'charging'
+          && run.phase === 'charging'
+          && run.resetNotice !== null
+        )
+      ) {
+        this.resetPlayerInputState(playerId)
+      }
+
+      if (run.phase === 'finished') {
+        const rank = results.length + 1
+        const finishedAtSeconds = nextElapsedSeconds
+        results = [
+          ...results,
+          {
+            playerId,
+            name: this.gameState.players[playerId].name,
+            finishedAtSeconds,
+            jumpCount: run.finishedAtJumpCount ?? run.jumpCount,
+            rank,
+          },
+        ]
+        winnerPlayerId = winnerPlayerId ?? playerId
+        this.resetPlayerInputState(playerId)
+        runs[playerId] = {
+          run,
+          finishedAtSeconds,
+          finishRank: rank,
+        }
+      } else {
+        runs[playerId] = {
+          ...currentPlayerRun,
+          run,
+        }
+      }
+    }
+
+    this.gameState = this.expirePings({
+      ...this.gameState,
+      elapsedSeconds: nextElapsedSeconds,
+      versus: {
+        status: 'running',
+        runs,
+        winnerPlayerId,
+        results,
+      },
+    })
+    this.finishVersusIfAllConnectedPlayersAreDone()
+  }
+
   private setLevel(levelId: string): void {
     const nextLevel = getLevelById(levelId)
     if (nextLevel.id === this.currentLevelId) {
@@ -281,11 +545,51 @@ export class GameRoom extends Room {
 
     this.currentLevelId = nextLevel.id
     this.roundRevision += 1
-    this.gameState = {
-      ...createInitialGameState(nextLevel),
+    this.gameState = this.createFreshGameState(nextLevel)
+    this.resetInputState()
+  }
+
+  private createFreshGameState(level: LevelData): GameState {
+    const nextState = {
+      ...createInitialGameState(level, this.mode),
       players: this.gameState.players,
     }
-    this.resetInputState()
+    if (this.mode !== 'versus') {
+      return nextState
+    }
+
+    const runs: VersusState['runs'] = {}
+    for (const playerId of playerOrder) {
+      if (nextState.players[playerId].connected) {
+        runs[playerId] = createVersusPlayerRun(level, nextState.elapsedSeconds)
+      }
+    }
+
+    return {
+      ...nextState,
+      versus: {
+        status: 'running',
+        runs,
+        winnerPlayerId: null,
+        results: [],
+      },
+    }
+  }
+
+  private resetVersusRun(playerId: PlayerId): void {
+    const level = getLevelById(this.currentLevelId)
+    const versus = this.gameState.versus ?? createVersusState()
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...versus,
+        runs: {
+          ...versus.runs,
+          [playerId]: createVersusPlayerRun(level, this.gameState.elapsedSeconds),
+        },
+      },
+    }
+    this.resetPlayerInputState(playerId)
   }
 
   private setPlayerConnected(
@@ -305,6 +609,36 @@ export class GameRoom extends Room {
     }
   }
 
+  private finishVersusIfAllConnectedPlayersAreDone(): void {
+    if (this.mode !== 'versus' || !this.gameState.versus) {
+      return
+    }
+
+    const activePlayerIds = playerOrder.filter(
+      (playerId) => this.gameState.players[playerId].connected,
+    )
+    if (activePlayerIds.length === 0) {
+      return
+    }
+
+    const everyActivePlayerFinished = activePlayerIds.every((playerId) => {
+      const playerRun = this.gameState.versus?.runs[playerId]
+      return playerRun !== undefined && playerRun.finishedAtSeconds !== null
+    })
+
+    if (!everyActivePlayerFinished) {
+      return
+    }
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...this.gameState.versus,
+        status: 'finished',
+      },
+    }
+  }
+
   private expirePings(state: GameState): GameState {
     const activePings = state.pings.filter(
       (ping) => state.elapsedSeconds - ping.createdAtSeconds < pingLifetimeSeconds,
@@ -320,22 +654,17 @@ export class GameRoom extends Room {
   }
 
   private resetInputState(): void {
-    this.directionIntent = {
-      player1: { x: 0, y: -1 },
-      player2: { x: 0, y: -1 },
-      player3: { x: 0, y: -1 },
-    }
-    this.chargingIntent = {
-      player1: false,
-      player2: false,
-      player3: false,
-    }
-    this.miniJumpQueued = {
-      player1: false,
-      player2: false,
-      player3: false,
-    }
-    this.wasCharging = false
+    this.directionIntent = createDirectionIntent()
+    this.chargingIntent = createBooleanIntent(false)
+    this.miniJumpQueued = createBooleanIntent(false)
+    this.wasCharging = createBooleanIntent(false)
+  }
+
+  private resetPlayerInputState(playerId: PlayerId): void {
+    this.directionIntent[playerId] = { x: 0, y: -1 }
+    this.chargingIntent[playerId] = false
+    this.miniJumpQueued[playerId] = false
+    this.wasCharging[playerId] = false
   }
 
   private broadcastState(): void {
@@ -348,6 +677,8 @@ export class GameRoom extends Room {
         availableLevels,
         isCreator: client.sessionId === this.creatorSessionId,
         roundRevision: this.roundRevision,
+        mode: this.mode,
+        maxClients: this.maxClients,
       }
       client.send('state', payload)
     }

@@ -1,3 +1,5 @@
+import type { GameMode } from '@shared/types/game-state'
+
 export interface LobbyPage {
   hide: () => void
   show: () => void
@@ -5,6 +7,7 @@ export interface LobbyPage {
   setStatus: (text: string) => void
   setInviteCode: (inviteCode: string) => void
   getInviteCode: () => string
+  getMode: () => GameMode
   setCopyVisible: (isVisible: boolean) => void
   onCreate: (callback: () => void) => void
   onJoin: (callback: (inviteCode: string) => void) => void
@@ -26,6 +29,7 @@ export function createLobbyPage(): LobbyPage {
   const createButton = mustGetElementById<HTMLButtonElement>('create-game')
   const joinButton = mustGetElementById<HTMLButtonElement>('join-game')
   const copyButton = mustGetElementById<HTMLButtonElement>('copy-invite')
+  const modeSelect = mustGetElementById<HTMLSelectElement>('game-mode-select')
   const status = mustGetElementById<HTMLParagraphElement>('lobby-status')
 
   return {
@@ -40,6 +44,7 @@ export function createLobbyPage(): LobbyPage {
       createButton.disabled = isBusy
       joinButton.disabled = isBusy
       copyButton.disabled = isBusy
+      modeSelect.disabled = isBusy
     },
     setStatus: (text: string) => {
       status.textContent = text
@@ -48,6 +53,7 @@ export function createLobbyPage(): LobbyPage {
       codeInput.value = inviteCode
     },
     getInviteCode: () => codeInput.value,
+    getMode: () => modeSelect.value === 'versus' ? 'versus' : 'coop',
     setCopyVisible: (isVisible: boolean) => {
       copyButton.hidden = !isVisible
     },

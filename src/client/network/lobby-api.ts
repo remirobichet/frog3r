@@ -1,11 +1,15 @@
+import type { GameMode } from '@shared/types/game-state'
+
 export interface CreateRoomResponse {
   inviteCode: string
+  mode: GameMode
   roomId: string
   inviteLink: string
 }
 
 export interface JoinRoomResponse {
   inviteCode: string
+  mode: GameMode
   roomId: string
 }
 
@@ -29,13 +33,16 @@ export function getServerWsBase(): string {
   return `${protocol}//${window.location.host}`
 }
 
-export async function createRoom(httpBase: string): Promise<CreateRoomResponse> {
+export async function createRoom(
+  httpBase: string,
+  mode: GameMode,
+): Promise<CreateRoomResponse> {
   const response = await fetch(`${httpBase}/api/rooms`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: '{}',
+    body: JSON.stringify({ mode }),
   })
 
   if (!response.ok) {

@@ -10,6 +10,8 @@ import {
 } from '@shared/constants/game'
 import type { LevelData, Platform } from '@shared/types/level'
 import type {
+  CoopPlayerId,
+  FrogRunState,
   GameState,
   PlayerId,
   PlayerRole,
@@ -91,8 +93,8 @@ function normalize(vector: Vector2): Vector2 {
 }
 
 function rotateRoles(
-  roles: Record<PlayerId, PlayerRole>,
-): Record<PlayerId, PlayerRole> {
+  roles: Record<CoopPlayerId, PlayerRole>,
+): Record<CoopPlayerId, PlayerRole> {
   return {
     player1:
       roles.player1 === 'direction'
@@ -268,7 +270,7 @@ function overlapsTrap(
   )
 }
 
-function tickResetNotice(state: GameState, deltaSeconds: number): GameState {
+function tickResetNotice(state: FrogRunState, deltaSeconds: number): FrogRunState {
   if (!state.resetNotice) {
     return state
   }
@@ -291,14 +293,12 @@ function tickResetNotice(state: GameState, deltaSeconds: number): GameState {
 }
 
 function resetLevelAfterFailure(
-  state: GameState,
+  state: FrogRunState,
   level: LevelData,
   message: string,
-): GameState {
+): FrogRunState {
   return {
-    ...createInitialGameState(level),
-    players: state.players,
-    pings: state.pings,
+    ...createInitialFrogRunState(level),
     resetNotice: {
       message,
       remainingSeconds: resetNoticeDurationSeconds,
@@ -306,7 +306,10 @@ function resetLevelAfterFailure(
   }
 }
 
-function startTrapResetCountdown(state: GameState, position: Vector2): GameState {
+function startTrapResetCountdown(
+  state: FrogRunState,
+  position: Vector2,
+): FrogRunState {
   return {
     ...state,
     phase: 'resetting',
@@ -490,10 +493,10 @@ function resolvePlatformSideCollisions(
 }
 
 function simulateGroundSlide(
-  state: GameState,
+  state: FrogRunState,
   deltaSeconds: number,
   level: LevelData,
-): GameState {
+): FrogRunState {
   const previousElapsedSeconds = state.elapsedSeconds - deltaSeconds
   const supportedPlatform = findSupportedPlatform(
     state.frog.position,
@@ -576,7 +579,7 @@ function simulateGroundSlide(
   }
 }
 
-export function createInitialGameState(level: LevelData): GameState {
+export function createInitialFrogRunState(level: LevelData): FrogRunState {
   return {
     elapsedSeconds: 0,
     phase: 'charging',
@@ -587,6 +590,20 @@ export function createInitialGameState(level: LevelData): GameState {
     activeDirection: { x: 0, y: -1 },
     jumpDirection: { x: 0, y: -1 },
     jumpPower: minJumpPower,
+    midAirJumpUsed: false,
+    jumpCount: 0,
+    finishedAtJumpCount: null,
+    resetNotice: null,
+  }
+}
+
+export function createInitialGameState(
+  level: LevelData,
+  mode: GameState['mode'] = 'coop',
+): GameState {
+  return {
+    ...createInitialFrogRunState(level),
+    mode,
     roles: {
       player1: 'direction',
       player2: 'power',
@@ -596,19 +613,36 @@ export function createInitialGameState(level: LevelData): GameState {
       player1: { name: 'Player 1', color: 0x6de56d, connected: false },
       player2: { name: 'Player 2', color: 0x64b5ff, connected: false },
       player3: { name: 'Player 3', color: 0xffcf5a, connected: false },
+      player4: { name: 'Player 4', color: 0xff8fb3, connected: false },
+      player5: { name: 'Player 5', color: 0xc6a4ff, connected: false },
+      player6: { name: 'Player 6', color: 0x6de5d2, connected: false },
+      player7: { name: 'Player 7', color: 0xff9f5a, connected: false },
+      player8: { name: 'Player 8', color: 0xd2f26d, connected: false },
     },
     pings: [],
-    midAirJumpUsed: false,
-    jumpCount: 0,
-    finishedAtJumpCount: null,
-    resetNotice: null,
+    versus: mode === 'versus'
+      ? {
+          status: 'running',
+          runs: {},
+          winnerPlayerId: null,
+          results: [],
+        }
+      : null,
   }
 }
 
 export function updateDirection(
   state: GameState,
   direction: Vector2,
-): GameState {
+): GameState
+export function updateDirection(
+  state: FrogRunState,
+  direction: Vector2,
+): FrogRunState
+export function updateDirection(
+  state: FrogRunState,
+  direction: Vector2,
+): FrogRunState {
   if (state.phase !== 'charging') {
     return state
   }
@@ -625,7 +659,17 @@ export function debugTeleportFrog(
   state: GameState,
   position: Vector2,
   level: LevelData,
-): GameState {
+): GameState
+export function debugTeleportFrog(
+  state: FrogRunState,
+  position: Vector2,
+  level: LevelData,
+): FrogRunState
+export function debugTeleportFrog(
+  state: FrogRunState,
+  position: Vector2,
+  level: LevelData,
+): FrogRunState {
   return {
     ...state,
     phase: 'airborne',
@@ -646,7 +690,17 @@ export function updateCharge(
   state: GameState,
   deltaSeconds: number,
   charging: boolean,
-): GameState {
+): GameState
+export function updateCharge(
+  state: FrogRunState,
+  deltaSeconds: number,
+  charging: boolean,
+): FrogRunState
+export function updateCharge(
+  state: FrogRunState,
+  deltaSeconds: number,
+  charging: boolean,
+): FrogRunState {
   if (!charging || state.phase !== 'charging') {
     return state
   }
@@ -661,7 +715,9 @@ export function updateCharge(
   }
 }
 
-export function launchJump(state: GameState): GameState {
+export function launchJump(state: GameState): GameState
+export function launchJump(state: FrogRunState): FrogRunState
+export function launchJump(state: FrogRunState): FrogRunState {
   if (state.phase !== 'charging') {
     return state
   }
@@ -686,7 +742,9 @@ export function launchJump(state: GameState): GameState {
   }
 }
 
-export function triggerMidAirJump(state: GameState): GameState {
+export function triggerMidAirJump(state: GameState): GameState
+export function triggerMidAirJump(state: FrogRunState): FrogRunState
+export function triggerMidAirJump(state: FrogRunState): FrogRunState {
   if (state.phase !== 'airborne' || state.midAirJumpUsed) {
     return state
   }
@@ -708,11 +766,11 @@ export function triggerMidAirJump(state: GameState): GameState {
   }
 }
 
-export function simulateTick(
-  state: GameState,
+export function simulateFrogRunTick(
+  state: FrogRunState,
   deltaSeconds: number,
   level: LevelData,
-): GameState {
+): FrogRunState {
   const stateWithNotice = {
     ...tickResetNotice(state, deltaSeconds),
     elapsedSeconds: state.elapsedSeconds + deltaSeconds,
@@ -722,9 +780,7 @@ export function simulateTick(
     return stateWithNotice.resetNotice
       ? stateWithNotice
       : {
-          ...createInitialGameState(level),
-          players: state.players,
-          pings: state.pings,
+          ...createInitialFrogRunState(level),
         }
   }
 
@@ -827,6 +883,23 @@ export function simulateTick(
     jumpPower: minJumpPower,
     midAirJumpUsed: false,
     jumpCount: nextJumpCount,
-    roles: rotateRoles(state.roles),
+  }
+}
+
+export function simulateTick(
+  state: GameState,
+  deltaSeconds: number,
+  level: LevelData,
+): GameState {
+  const nextRun = simulateFrogRunTick(state, deltaSeconds, level)
+  const completedLanding =
+    state.phase === 'airborne' &&
+    nextRun.phase === 'charging' &&
+    nextRun.jumpCount === state.jumpCount + 1
+
+  return {
+    ...state,
+    ...nextRun,
+    roles: completedLanding ? rotateRoles(state.roles) : state.roles,
   }
 }

@@ -1,4 +1,4 @@
-import type { GameState, PlayerId, Vector2 } from '@shared/types/game-state'
+import type { GameMode, GameState, PlayerId, Vector2 } from '@shared/types/game-state'
 import type { LevelSummary } from '@shared/types/level'
 
 export interface AimInputMessage {
@@ -47,6 +47,7 @@ export type ClientInputMessage =
 export interface JoinedMessage {
   playerId: PlayerId
   inviteCode: string
+  mode: GameMode
 }
 
 export interface StateMessage {
@@ -57,4 +58,6 @@ export interface StateMessage {
   availableLevels: LevelSummary[]
   isCreator: boolean
   roundRevision: number
+  mode: GameMode
+  maxClients: number
 }

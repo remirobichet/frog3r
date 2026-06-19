@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { frogRadius, minJumpPower } from '@shared/constants/game'
 import { getDefaultLevel } from '@shared/levels'
 import {
+  createInitialFrogRunState,
   createInitialGameState,
   launchJump,
+  simulateFrogRunTick,
   simulateTick,
   triggerMidAirJump,
   updateCharge,
@@ -25,6 +27,30 @@ describe('gameplay basics', () => {
     expect(state.frog.velocity.x).toBeGreaterThan(0)
     expect(state.frog.velocity.y).toBeLessThan(0)
     expect(state.jumpPower).toBeGreaterThan(minJumpPower)
+  })
+
+  it('initializes versus rooms with eight player profiles', () => {
+    const state = createInitialGameState(level, 'versus')
+
+    expect(state.mode).toBe('versus')
+    expect(state.players.player8.name).toBe('Player 8')
+    expect(state.versus?.status).toBe('running')
+    expect(state.versus?.winnerPlayerId).toBeNull()
+  })
+
+  it('simulates an independent frog run without coop roles', () => {
+    let run = createInitialFrogRunState(level)
+
+    run = updateDirection(run, { x: 1, y: -1 })
+    run = launchJump(run)
+
+    for (let i = 0; i < 120; i += 1) {
+      run = simulateFrogRunTick(run, 1 / 60, level)
+    }
+
+    expect(run.phase).toBe('charging')
+    expect(run.jumpCount).toBe(1)
+    expect(run.frog.position.y).toBe(level.spawn.y)
   })
 
   it('allows only one mid-air mini jump per jump', () => {

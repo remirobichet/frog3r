@@ -102,11 +102,14 @@ async function bootstrap(): Promise<void> {
     lobby.setBusy(true)
 
     try {
-      const room = await createRoom(httpBase)
+      const selectedMode = lobby.getMode()
+      const room = await createRoom(httpBase, selectedMode)
       inviteLink = room.inviteLink
       lobby.setInviteCode(room.inviteCode)
       lobby.setCopyVisible(true)
-      lobby.setStatus(`Room ${room.inviteCode} created. Share invite link.`)
+      lobby.setStatus(
+        `${room.mode.toUpperCase()} room ${room.inviteCode} created. Share invite link.`,
+      )
       await connectToRoom(room.roomId, room.inviteCode)
     } catch (error: unknown) {
       const message =

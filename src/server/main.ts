@@ -7,6 +7,7 @@ import cors from 'cors'
 import express, { type Request, type Response } from 'express'
 
 import { gameRoomName } from '../shared/constants/game'
+import type { GameMode } from '../shared/types/game-state'
 
 import { GameRoom } from './rooms/game-room'
 
@@ -23,6 +24,10 @@ function createInviteCode(): string {
     code += alphabet[Math.floor(Math.random() * alphabet.length)]
   }
   return code
+}
+
+function parseGameMode(value: unknown): GameMode {
+  return value === 'versus' ? 'versus' : 'coop'
 }
 
 async function startServer(): Promise<void> {
@@ -45,14 +50,17 @@ async function startServer(): Promise<void> {
       ? request.body.inviteCode.trim().toUpperCase()
       : ''
     const inviteCode = existingCode || createInviteCode()
+    const mode = parseGameMode(request.body?.mode)
 
     const room = await matchMaker.createRoom(gameRoomName, {
       inviteCode,
+      mode,
     })
 
     const baseUrl = request.headers.origin ?? 'http://localhost:5173'
     response.status(201).json({
       inviteCode,
+      mode,
       roomId: room.roomId,
       inviteLink: `${baseUrl}/?room=${inviteCode}`,
     })
@@ -79,13 +87,19 @@ async function startServer(): Promise<void> {
       return
     }
 
-    if (targetRoom.locked || targetRoom.clients >= 3) {
+    const metadata = targetRoom.metadata as
+      | { mode?: GameMode; maxClients?: number }
+      | undefined
+    const maxClients = metadata?.maxClients ?? 3
+
+    if (targetRoom.locked || targetRoom.clients >= maxClients) {
       response.status(409).json({ error: 'Room is full' })
       return
     }
 
     response.json({
       inviteCode,
+      mode: metadata?.mode ?? 'coop',
       roomId: targetRoom.roomId,
     })
   })

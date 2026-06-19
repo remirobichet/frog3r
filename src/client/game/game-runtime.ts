@@ -7,6 +7,7 @@ import {
   Graphics,
   Rectangle,
   Sprite,
+  Text,
   Texture,
 } from 'pixi.js'
 
@@ -23,6 +24,8 @@ import {
 import { availableLevels, getDefaultLevel, getLevelById } from '@shared/levels'
 import { getPlatformPosition } from '@shared/utils/gameplay'
 import type {
+  CoopPlayerId,
+  FrogRunState,
   GameState,
   PlayerId,
   PlayerRole,
@@ -82,6 +85,7 @@ interface GameStatusPanel {
   players: HTMLSpanElement
   player: HTMLSpanElement
   creator: HTMLSpanElement
+  mode: HTMLSpanElement
   level: HTMLSpanElement
   roles: HTMLSpanElement
   phase: HTMLSpanElement
@@ -109,6 +113,13 @@ interface ResetNoticeBanner {
 }
 
 type FrogAnimation = 'idle' | 'jump' | 'landing'
+type PlayerControlRole = PlayerRole | 'runner' | 'spectator'
+
+interface FrogView {
+  sprite: AnimatedSprite
+  label: Text
+  animation: FrogAnimation
+}
 
 const FROG_FRAME_SIZE = 160
 const FROG_RENDER_SIZE = frogRadius * 4
@@ -120,6 +131,16 @@ const POWER_INDICATOR_HEIGHT = 10
 const POWER_INDICATOR_DISTANCE = 78
 const POWER_INDICATOR_HIGH_POWER_THRESHOLD = 0.72
 const PING_LIFETIME_SECONDS = 2
+const playerOrder: PlayerId[] = [
+  'player1',
+  'player2',
+  'player3',
+  'player4',
+  'player5',
+  'player6',
+  'player7',
+  'player8',
+]
 const tileAssetUrls = import.meta.glob<string>('../assets/tiles/**/*.png', {
   eager: true,
   import: 'default',
@@ -307,6 +328,7 @@ function getGameStatusPanel(): GameStatusPanel {
     players: mustGetElementById<HTMLSpanElement>('status-players'),
     player: mustGetElementById<HTMLSpanElement>('status-player'),
     creator: mustGetElementById<HTMLSpanElement>('status-creator'),
+    mode: mustGetElementById<HTMLSpanElement>('status-mode'),
     level: mustGetElementById<HTMLSpanElement>('status-level'),
     roles: mustGetElementById<HTMLSpanElement>('status-roles'),
     phase: mustGetElementById<HTMLSpanElement>('status-phase'),
@@ -356,7 +378,11 @@ function syncLevelOptions(
   }
 }
 
-function getRoleDisplayName(role: PlayerRole | 'spectator'): string {
+function getRoleDisplayName(role: PlayerControlRole): string {
+  if (role === 'runner') {
+    return 'Runner'
+  }
+
   if (role === 'direction') {
     return 'Aim'
   }
@@ -372,7 +398,28 @@ function getRoleDisplayName(role: PlayerRole | 'spectator'): string {
   return 'Spectator'
 }
 
-function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
+function getRoleHint(
+  role: PlayerControlRole,
+  state: GameState,
+  playerId: PlayerId | null,
+): string {
+  if (state.mode === 'versus') {
+    if (role === 'spectator' || !playerId) {
+      return 'You are watching this race.'
+    }
+
+    const playerRun = state.versus?.runs[playerId]
+    if (state.versus?.status === 'finished') {
+      return 'Race finished. Check the final recap.'
+    }
+
+    if (playerRun && playerRun.finishedAtSeconds !== null) {
+      return 'Finished. Watch the remaining frogs reach the goal.'
+    }
+
+    return 'Aim with your cursor. Hold Space to charge, release to jump, then press Space in air.'
+  }
+
   if (state.phase === 'finished') {
     const jumps = state.finishedAtJumpCount ?? state.jumpCount
     const jumpLabel = jumps === 1 ? 'jump' : 'jumps'
@@ -402,7 +449,59 @@ function getRoleHint(role: PlayerRole | 'spectator', state: GameState): string {
   return 'You are watching this run. Join with an open player slot to take a role.'
 }
 
-function getCenterNoticeMessage(state: GameState): string | null {
+function formatRaceTime(seconds: number): string {
+  return `${seconds.toFixed(2)}s`
+}
+
+function getJumpLabel(jumps: number): string {
+  return jumps === 1 ? 'jump' : 'jumps'
+}
+
+function getRankLabel(rank: number): string {
+  if (rank === 1) {
+    return '🥇'
+  }
+
+  if (rank === 2) {
+    return '🥈'
+  }
+
+  if (rank === 3) {
+    return '🥉'
+  }
+
+  return `${rank}.`
+}
+
+function getCenterNoticeMessage(
+  state: GameState,
+  playerId: PlayerId | null,
+): string | null {
+  if (state.mode === 'versus' && state.versus?.status === 'finished') {
+    const winner = state.versus.winnerPlayerId
+      ? state.players[state.versus.winnerPlayerId]
+      : null
+    const resultLines = state.versus.results.map((result) => {
+      const jumpLabel = getJumpLabel(result.jumpCount)
+      return `${getRankLabel(result.rank)} ${result.name} - ${formatRaceTime(result.finishedAtSeconds)} - ${result.jumpCount} ${jumpLabel}`
+    })
+
+    return [`👑 Winner: ${winner?.name ?? 'Unknown'}`, '', ...resultLines].join(
+      '\n',
+    )
+  }
+
+  if (state.mode === 'versus') {
+    const playerRun = playerId ? state.versus?.runs[playerId]?.run : null
+    if (playerRun?.resetNotice) {
+      return playerRun.resetNotice.message
+    }
+
+    if (playerRun?.phase === 'finished') {
+      return 'Finished! Waiting for the remaining frogs.'
+    }
+  }
+
   if (state.resetNotice) {
     return state.resetNotice.message
   }
@@ -425,11 +524,31 @@ function getPlayerLabel(state: GameState, playerId: PlayerId): string {
 }
 
 function getPlayerRolesSummary(state: GameState): string {
-  return (['player1', 'player2', 'player3'] as PlayerId[])
+  return (['player1', 'player2', 'player3'] as CoopPlayerId[])
     .map((playerId) => {
       const player = state.players[playerId]
       const connectionLabel = player.connected ? '' : ' (offline)'
       return `${player.name}: ${state.roles[playerId]}${connectionLabel}`
+    })
+    .join(' | ')
+}
+
+function getVersusPlayersSummary(state: GameState): string {
+  const versus = state.versus
+  if (!versus) {
+    return '-'
+  }
+
+  return playerOrder
+    .filter((playerId) => state.players[playerId].connected)
+    .map((playerId) => {
+      const player = state.players[playerId]
+      const playerRun = versus.runs[playerId]
+      if (playerRun && playerRun.finishedAtSeconds !== null) {
+        return `${player.name}: #${playerRun.finishRank ?? '-'} ${formatRaceTime(playerRun.finishedAtSeconds)}`
+      }
+
+      return `${player.name}: racing`
     })
     .join(' | ')
 }
@@ -678,7 +797,7 @@ function createFrogTextures(frogTexture: Texture): Texture[] {
   )
 }
 
-function getFrogAnimation(gameState: GameState): FrogAnimation {
+function getFrogAnimation(gameState: FrogRunState): FrogAnimation {
   if (gameState.phase === 'charging' || gameState.phase === 'finished') {
     return 'idle'
   }
@@ -721,6 +840,134 @@ function setFrogFacing(
 
   const horizontalScale = Math.abs(frog.scale.x)
   frog.scale.x = horizontalDirection < 0 ? -horizontalScale : horizontalScale
+}
+
+function createFrogView(frogTextures: Texture[]): FrogView {
+  const sprite = new AnimatedSprite([frogTextures[0], frogTextures[1]])
+  sprite.anchor.set(0.5, 1)
+  sprite.animationSpeed = 0.06
+  sprite.width = FROG_RENDER_SIZE
+  sprite.height = FROG_RENDER_SIZE
+  sprite.play()
+
+  const label = new Text({
+    text: '',
+    style: {
+      align: 'center',
+      fill: '#f3fbe8',
+      fontFamily: 'Trebuchet MS, Segoe UI, system-ui, sans-serif',
+      fontSize: 22,
+      fontWeight: '800',
+    },
+  })
+  label.anchor.set(0.5, 1)
+
+  return {
+    sprite,
+    label,
+    animation: 'idle',
+  }
+}
+
+function destroyFrogView(view: FrogView): void {
+  view.sprite.destroy()
+  view.label.destroy()
+}
+
+function updateFrogView(
+  view: FrogView,
+  run: FrogRunState,
+  frogTextures: Texture[],
+  name: string,
+  color: number,
+  alpha: number,
+): void {
+  view.sprite.visible = true
+  view.sprite.alpha = alpha
+  view.sprite.tint = color
+  view.sprite.position.set(
+    run.frog.position.x,
+    run.frog.position.y + FROG_VISUAL_Y_OFFSET,
+  )
+  view.animation = setFrogAnimation(
+    view.sprite,
+    frogTextures,
+    getFrogAnimation(run),
+    view.animation,
+  )
+  setFrogFacing(
+    view.sprite,
+    run.phase === 'airborne' ? run.frog.velocity.x : run.jumpDirection.x,
+  )
+
+  view.label.text = name
+  view.label.alpha = Math.max(alpha, 0.58)
+  view.label.tint = color
+  view.label.position.set(
+    run.frog.position.x,
+    run.frog.position.y - FROG_RENDER_SIZE + FROG_VISUAL_Y_OFFSET - 6,
+  )
+}
+
+function renderVersusFrogs(
+  views: Map<PlayerId, FrogView>,
+  container: Container,
+  state: GameState,
+  myPlayerId: PlayerId | null,
+  frogTextures: Texture[],
+): void {
+  const versus = state.versus
+  if (!versus) {
+    return
+  }
+
+  const activePlayerIds = new Set<PlayerId>()
+  const myRun = myPlayerId ? versus.runs[myPlayerId] : null
+  const localFinished = Boolean(myRun && myRun.finishedAtSeconds !== null)
+  const showAllFrogsNormally = localFinished || versus.status === 'finished'
+
+  for (const playerId of playerOrder) {
+    const playerRun = versus.runs[playerId]
+    if (!playerRun) {
+      continue
+    }
+
+    if (
+      !state.players[playerId].connected &&
+      playerRun.finishedAtSeconds === null
+    ) {
+      continue
+    }
+
+    activePlayerIds.add(playerId)
+    let view = views.get(playerId)
+    if (!view) {
+      view = createFrogView(frogTextures)
+      views.set(playerId, view)
+      container.addChild(view.sprite, view.label)
+    }
+
+    const isLocalPlayer = playerId === myPlayerId
+    const alpha = isLocalPlayer || showAllFrogsNormally ? 1 : 0.16
+    const player = state.players[playerId]
+    updateFrogView(
+      view,
+      playerRun.run,
+      frogTextures,
+      player.name,
+      player.color,
+      alpha,
+    )
+  }
+
+  for (const [playerId, view] of views) {
+    if (activePlayerIds.has(playerId)) {
+      continue
+    }
+
+    views.delete(playerId)
+    destroyFrogView(view)
+  }
 }
 
 function drawLevel(
@@ -824,6 +1071,9 @@ export async function startGameRuntime(
   frog.play()
   stage.addChild(frog)
 
+  const versusFrogContainer = new Container()
+  stage.addChild(versusFrogContainer)
+
   const pingContainer = new Container()
   stage.addChild(pingContainer)
 
@@ -847,6 +1097,8 @@ export async function startGameRuntime(
   let latestRoundRevision = 0
   let currentFrogAnimation: FrogAnimation = 'idle'
   let lastSentPlayerName = ''
+  let lastCenterNoticeMessage: string | null = null
+  const versusFrogViews = new Map<PlayerId, FrogView>()
 
   drawLevel(
     levelBackground,
@@ -864,15 +1116,26 @@ export async function startGameRuntime(
   playerRoleBanner.hint.textContent = 'Waiting for a player role.'
   playerRoleBanner.nameInput.value = 'Player'
 
-  function getMyRole(state: GameState): PlayerRole | 'spectator' {
+  function getMyRole(state: GameState): PlayerControlRole {
     if (!myPlayerId) {
       return 'spectator'
     }
 
-    return state.roles[myPlayerId]
+    if (state.mode === 'versus') {
+      return 'runner'
+    }
+
+    return state.roles[myPlayerId as CoopPlayerId]
   }
 
-  function canControlRole(currentRole: PlayerRole | 'spectator', role: PlayerRole): boolean {
+  function canControlRole(
+    currentRole: PlayerControlRole,
+    role: PlayerRole,
+  ): boolean {
+    if (currentRole === 'runner') {
+      return true
+    }
+
     return currentRole === role || import.meta.env.DEV
   }
 
@@ -998,25 +1261,40 @@ export async function startGameRuntime(
       roomControls.select.disabled = !isCreator
     }
 
-    const role = message.playerId
-      ? message.gameState.roles[message.playerId]
-      : 'spectator'
-    const roleHint = getRoleHint(role, message.gameState)
-    gameStatus.players.textContent = `${message.connectedCount}/3`
+    const role = getMyRole(message.gameState)
+    const roleHint = getRoleHint(role, message.gameState, message.playerId)
+    const displayRun =
+      message.gameState.mode === 'versus'
+        ? message.playerId
+          ? (message.gameState.versus?.runs[message.playerId]?.run ?? null)
+          : null
+        : message.gameState
+    gameStatus.players.textContent = `${message.connectedCount}/${message.maxClients}`
     gameStatus.player.textContent = message.playerId
       ? getPlayerLabel(message.gameState, message.playerId)
       : 'spectator'
     gameStatus.creator.textContent = isCreator ? 'yes' : 'no'
+    gameStatus.mode.textContent = message.mode
     gameStatus.level.textContent = currentLevel.name
-    gameStatus.roles.textContent = getPlayerRolesSummary(message.gameState)
-    gameStatus.phase.textContent = message.gameState.phase
-    gameStatus.jumps.textContent = String(message.gameState.jumpCount)
-    gameStatus.power.textContent = String(
-      Math.round(message.gameState.jumpPower),
-    )
-    gameStatus.midAir.textContent = message.gameState.midAirJumpUsed
-      ? 'used'
-      : 'ready'
+    gameStatus.roles.textContent =
+      message.gameState.mode === 'versus'
+        ? getVersusPlayersSummary(message.gameState)
+        : getPlayerRolesSummary(message.gameState)
+    gameStatus.phase.textContent =
+      message.gameState.mode === 'versus'
+        ? (message.gameState.versus?.status ?? 'running')
+        : message.gameState.phase
+    gameStatus.jumps.textContent = displayRun
+      ? String(displayRun.jumpCount)
+      : '-'
+    gameStatus.power.textContent = displayRun
+      ? String(Math.round(displayRun.jumpPower))
+      : '-'
+    gameStatus.midAir.textContent = displayRun
+      ? displayRun.midAirJumpUsed
+        ? 'used'
+        : 'ready'
+      : '-'
     gameStatus.controls.textContent = roleHint
     playerRoleBanner.value.textContent = getRoleDisplayName(role)
     if (message.playerId) {
@@ -1028,11 +1306,19 @@ export async function startGameRuntime(
         lastSentPlayerName = player.name
       }
     }
-    playerRoleBanner.hint.hidden = message.gameState.phase === 'finished'
+    playerRoleBanner.hint.hidden =
+      message.gameState.mode === 'coop' &&
+      message.gameState.phase === 'finished'
     playerRoleBanner.hint.textContent = roleHint
-    const centerNoticeMessage = getCenterNoticeMessage(message.gameState)
-    resetNoticeBanner.element.hidden = centerNoticeMessage === null
-    resetNoticeBanner.element.textContent = centerNoticeMessage ?? ''
+    const centerNoticeMessage = getCenterNoticeMessage(
+      message.gameState,
+      message.playerId,
+    )
+    if (centerNoticeMessage !== lastCenterNoticeMessage) {
+      lastCenterNoticeMessage = centerNoticeMessage
+      resetNoticeBanner.element.hidden = centerNoticeMessage === null
+      resetNoticeBanner.element.textContent = centerNoticeMessage ?? ''
+    }
   })
 
   params.room.onLeave(() => {
@@ -1048,7 +1334,20 @@ export async function startGameRuntime(
 
     const myRole = getMyRole(gameState)
     const now = performance.now()
-    const frogRenderPosition = getFrogRenderPosition(gameState.frog.position)
+    const isVersus = gameState.mode === 'versus'
+    const localVersusRun =
+      isVersus && myPlayerId
+        ? (gameState.versus?.runs[myPlayerId]?.run ?? null)
+        : null
+    const activeRun = isVersus ? localVersusRun : gameState
+    const canSendGameplayInput = Boolean(
+      activeRun &&
+      activeRun.phase !== 'finished' &&
+      gameState.versus?.status !== 'finished',
+    )
+    const frogRenderPosition = activeRun
+      ? getFrogRenderPosition(activeRun.frog.position)
+      : { x: 0, y: 0 }
 
     if (mouse.state.pendingPingPosition) {
       sendInput({
@@ -1066,7 +1365,12 @@ export async function startGameRuntime(
       mouse.state.pendingDebugTeleportPosition = null
     }
 
-    if (canControlRole(myRole, 'direction') && gameState.phase === 'charging') {
+    if (
+      activeRun &&
+      canSendGameplayInput &&
+      canControlRole(myRole, 'direction') &&
+      activeRun.phase === 'charging'
+    ) {
       if (now - lastAimSendAt >= 50) {
         const directionInput = getDirectionalVector(
           mouse.state,
@@ -1080,7 +1384,7 @@ export async function startGameRuntime(
       }
     }
 
-    if (canControlRole(myRole, 'power')) {
+    if (activeRun && canSendGameplayInput && canControlRole(myRole, 'power')) {
       const charging = keyboard.state.pressed.has('Space')
       if (charging !== chargingSent) {
         sendInput({
@@ -1097,46 +1401,65 @@ export async function startGameRuntime(
       chargingSent = false
     }
 
-    if (canControlRole(myRole, 'midJump') && keyboard.state.justPressed.has('Space')) {
+    if (
+      activeRun &&
+      canSendGameplayInput &&
+      canControlRole(myRole, 'midJump') &&
+      keyboard.state.justPressed.has('Space')
+    ) {
       sendInput({
         type: 'miniJump',
       })
     }
 
-    frog.position.set(
-      gameState.frog.position.x,
-      gameState.frog.position.y + FROG_VISUAL_Y_OFFSET,
-    )
-    currentFrogAnimation = setFrogAnimation(
-      frog,
-      frogTextures,
-      getFrogAnimation(gameState),
-      currentFrogAnimation,
-    )
-    setFrogFacing(
-      frog,
-      gameState.phase === 'airborne'
-        ? gameState.frog.velocity.x
-        : gameState.jumpDirection.x,
-    )
+    frog.visible = !isVersus
+    versusFrogContainer.visible = isVersus
+    if (isVersus) {
+      renderVersusFrogs(
+        versusFrogViews,
+        versusFrogContainer,
+        gameState,
+        myPlayerId,
+        frogTextures,
+      )
+    } else {
+      frog.position.set(
+        gameState.frog.position.x,
+        gameState.frog.position.y + FROG_VISUAL_Y_OFFSET,
+      )
+      currentFrogAnimation = setFrogAnimation(
+        frog,
+        frogTextures,
+        getFrogAnimation(gameState),
+        currentFrogAnimation,
+      )
+      setFrogFacing(
+        frog,
+        gameState.phase === 'airborne'
+          ? gameState.frog.velocity.x
+          : gameState.jumpDirection.x,
+      )
+    }
 
     aim.position.set(frogRenderPosition.x, frogRenderPosition.y)
-    aim.rotation = Math.atan2(
-      gameState.jumpDirection.y,
-      gameState.jumpDirection.x,
-    )
-    aim.visible = gameState.phase === 'charging'
+    aim.rotation = activeRun
+      ? Math.atan2(activeRun.jumpDirection.y, activeRun.jumpDirection.x)
+      : 0
+    aim.visible = Boolean(activeRun && activeRun.phase === 'charging')
 
-    const powerRatio =
-      (gameState.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
+    const powerRatio = activeRun
+      ? (activeRun.jumpPower - minJumpPower) / (maxJumpPower - minJumpPower)
+      : 0
     const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio))
 
-    powerIndicator.visible = gameState.phase === 'charging'
+    powerIndicator.visible = Boolean(
+      activeRun && activeRun.phase === 'charging',
+    )
     if (powerIndicator.visible) {
       drawPowerIndicator(
         powerIndicator,
         frogRenderPosition,
-        gameState.jumpDirection,
+        activeRun?.jumpDirection ?? { x: 0, y: -1 },
         clampedPowerRatio,
       )
     } else {
