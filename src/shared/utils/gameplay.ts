@@ -270,6 +270,61 @@ function overlapsTrap(
   )
 }
 
+function crossesPlatformBody(
+  platform: Platform,
+  previousPosition: Vector2,
+  nextPosition: Vector2,
+): boolean {
+  const minX = platform.x - frogRadius
+  const maxX = platform.x + platform.width + frogRadius
+  const minY = platform.y
+  const maxY = platform.y + platform.height + frogCollisionHeight
+  const deltaX = nextPosition.x - previousPosition.x
+  const deltaY = nextPosition.y - previousPosition.y
+  let entryRatio = 0
+  let exitRatio = 1
+
+  const updateAxis = (
+    start: number,
+    delta: number,
+    min: number,
+    max: number,
+  ): boolean => {
+    if (delta === 0) {
+      return start > min && start < max
+    }
+
+    const firstRatio = (min - start) / delta
+    const secondRatio = (max - start) / delta
+    entryRatio = Math.max(entryRatio, Math.min(firstRatio, secondRatio))
+    exitRatio = Math.min(exitRatio, Math.max(firstRatio, secondRatio))
+
+    return entryRatio <= exitRatio
+  }
+
+  return (
+    updateAxis(previousPosition.x, deltaX, minX, maxX) &&
+    updateAxis(previousPosition.y, deltaY, minY, maxY) &&
+    exitRatio >= 0 &&
+    entryRatio <= 1
+  )
+}
+
+function crossesTrap(
+  previousPosition: Vector2,
+  nextPosition: Vector2,
+  level: LevelData,
+  elapsedSeconds: number,
+): boolean {
+  return level.platforms.some(
+    (platform) => platform.trap && crossesPlatformBody(
+      getPlatformAtElapsed(platform, elapsedSeconds),
+      previousPosition,
+      nextPosition,
+    ),
+  )
+}
+
 function tickResetNotice(state: FrogRunState, deltaSeconds: number): FrogRunState {
   if (!state.resetNotice) {
     return state
@@ -817,7 +872,10 @@ export function simulateFrogRunTick(
     y: state.frog.position.y + nextVelocityAfterWorldCollision.y * deltaSeconds,
   }
 
-  if (overlapsTrap(nextPosition, level, state.elapsedSeconds)) {
+  if (
+    overlapsTrap(nextPosition, level, state.elapsedSeconds) ||
+    crossesTrap(state.frog.position, nextPosition, level, state.elapsedSeconds)
+  ) {
     return startTrapResetCountdown(state, nextPosition)
   }
 

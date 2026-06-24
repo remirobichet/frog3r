@@ -446,4 +446,46 @@ describe('gameplay basics', () => {
     expect(state.frog.position).toEqual(level.spawn)
     expect(state.resetNotice).toBeNull()
   })
+
+  it('restarts when the frog crosses a thin vertical trap between ticks', () => {
+    const trap = {
+      x: 180,
+      y: 390,
+      width: 12,
+      height: 80,
+      slippery: false,
+      trampoline: false,
+      trap: true,
+    }
+    const trapLevel = {
+      ...level,
+      spawn: { x: 150, y: 430 },
+      platforms: [trap],
+      finish: {
+        x: 1000,
+        y: level.spawn.y,
+        width: 40,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+
+    const state = simulateTick(
+      {
+        ...createInitialGameState(trapLevel),
+        phase: 'airborne',
+        frog: {
+          position: trapLevel.spawn,
+          velocity: { x: 3600, y: 0 },
+        },
+      },
+      1 / 60,
+      trapLevel,
+    )
+
+    expect(state.phase).toBe('resetting')
+    expect(state.resetNotice?.message).toContain('trap')
+  })
 })

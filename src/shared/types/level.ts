@@ -67,6 +67,7 @@ export interface TiledObject {
   y: number
   width?: number
   height?: number
+  rotation?: number
   point?: boolean
   properties?: TiledProperty[]
 }

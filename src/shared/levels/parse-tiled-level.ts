@@ -66,21 +66,59 @@ function parsePlatformMovement(object: TiledObject): PlatformMovement | undefine
   }
 }
 
-function parsePlatform(object: TiledObject): Platform | null {
+function getObjectBounds(object: TiledObject): Pick<Platform, 'x' | 'y' | 'width' | 'height'> {
   const width = object.width ?? 0
   const height = object.height ?? 0
+  const rotation = object.rotation ?? 0
+
+  if (rotation === 0) {
+    return {
+      x: object.x,
+      y: object.y,
+      width,
+      height,
+    }
+  }
+
+  const radians = rotation * Math.PI / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  const corners = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ].map((corner) => ({
+    x: object.x + corner.x * cos - corner.y * sin,
+    y: object.y + corner.x * sin + corner.y * cos,
+  }))
+  const minX = Math.min(...corners.map((corner) => corner.x))
+  const maxX = Math.max(...corners.map((corner) => corner.x))
+  const minY = Math.min(...corners.map((corner) => corner.y))
+  const maxY = Math.max(...corners.map((corner) => corner.y))
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
+
+function parsePlatform(object: TiledObject): Platform | null {
+  const bounds = getObjectBounds(object)
   const slipperyProperty = getProperty(object.properties, 'slippery', 'bool')
   const trampolineProperty = getProperty(object.properties, 'trampoline', 'bool')
   const trapProperty = getProperty(object.properties, 'trap', 'bool')
-  if (width <= 0 || height <= 0) {
+  if (bounds.width <= 0 || bounds.height <= 0) {
     return null
   }
 
   return {
-    x: object.x,
-    y: object.y,
-    width,
-    height,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
     slippery: slipperyProperty === true,
     trampoline: trampolineProperty === true,
     trap: trapProperty === true,
