@@ -5,6 +5,9 @@ import levelOneThreeMap from '@shared/levels/tiled/level_1-3.json'
 import levelTwoOneMap from '@shared/levels/tiled/level_2-1.json'
 import levelTwoTwoMap from '@shared/levels/tiled/level_2-2.json'
 import levelTwoThreeMap from '@shared/levels/tiled/level_2-3.json'
+import levelThreeOneMap from '@shared/levels/tiled/level_3-1.json'
+import levelThreeTwoMap from '@shared/levels/tiled/level_3-2.json'
+import levelThreeThreeMap from '@shared/levels/tiled/level_3-3.json'
 import { parseTiledLevel } from '@shared/levels/parse-tiled-level'
 import type { LevelData, LevelSummary } from '@shared/types/level'
 
@@ -16,6 +19,9 @@ const allLevels: LevelData[] = [
   parseTiledLevel('level_2-1', levelTwoOneMap),
   parseTiledLevel('level_2-2', levelTwoTwoMap),
   parseTiledLevel('level_2-3', levelTwoThreeMap),
+  parseTiledLevel('level_3-1', levelThreeOneMap),
+  parseTiledLevel('level_3-2', levelThreeTwoMap),
+  parseTiledLevel('level_3-3', levelThreeThreeMap),
 ]
 
 const [defaultLevel] = allLevels

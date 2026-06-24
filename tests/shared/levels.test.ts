@@ -8,7 +8,7 @@ describe('level registry', () => {
   it('registers the Tiled levels', () => {
     const levels = getAllLevels()
 
-    expect(levels).toHaveLength(7)
+    expect(levels).toHaveLength(10)
     expect(levels.map((level) => level.id)).toEqual([
       'level_0',
       'level_1-1',
@@ -17,6 +17,9 @@ describe('level registry', () => {
       'level_2-1',
       'level_2-2',
       'level_2-3',
+      'level_3-1',
+      'level_3-2',
+      'level_3-3',
     ])
   })
 
@@ -91,5 +94,51 @@ describe('level registry', () => {
       duration: 2.5,
       offset: 0.5,
     })
+  })
+
+  it('parses rotated Tiled objects as axis-aligned platform bounds', () => {
+    const tiledMap: TiledMap = {
+      type: 'map',
+      width: 10,
+      height: 10,
+      tilewidth: 40,
+      tileheight: 40,
+      layers: [
+        {
+          id: 1,
+          name: 'platforms',
+          type: 'objectgroup',
+          objects: [
+            {
+              id: 1,
+              x: 55,
+              y: 600,
+              width: 200,
+              height: 15,
+              rotation: 90,
+              properties: [{ name: 'trap', type: 'bool', value: true }],
+            },
+          ],
+        },
+        {
+          id: 2,
+          name: 'markers',
+          type: 'objectgroup',
+          objects: [
+            { id: 2, name: 'spawn', x: 80, y: 200, point: true },
+            { id: 3, name: 'finish', x: 320, y: 200, width: 40, height: 40 },
+          ],
+        },
+      ],
+    }
+
+    const parsedLevel = parseTiledLevel('rotated-test', tiledMap)
+    const trap = parsedLevel.platforms[0]
+
+    expect(trap?.trap).toBe(true)
+    expect(trap?.x).toBeCloseTo(40)
+    expect(trap?.y).toBeCloseTo(600)
+    expect(trap?.width).toBeCloseTo(15)
+    expect(trap?.height).toBeCloseTo(200)
   })
 })
