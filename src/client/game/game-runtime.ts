@@ -123,6 +123,7 @@ const FROG_FRAME_SIZE = 160
 const FROG_RENDER_SIZE = frogRadius * 4
 const FROG_VISUAL_Y_OFFSET = 24
 const FROG_FACING_DEAD_ZONE = 0.01
+const FROG_IDLE_ANIMATION_SPEED = 0.03
 const AIM_ARROW_LENGTH = 92
 const AIM_ARROW_HEAD_LENGTH = 28
 const AIM_ARROW_HALF_HEIGHT = 16
@@ -851,7 +852,7 @@ function setFrogFacing(
 function createFrogView(frogTextures: Texture[]): FrogView {
   const sprite = new AnimatedSprite([frogTextures[0], frogTextures[1]])
   sprite.anchor.set(0.5, 1)
-  sprite.animationSpeed = 0.06
+  sprite.animationSpeed = FROG_IDLE_ANIMATION_SPEED
   sprite.width = FROG_RENDER_SIZE
   sprite.height = FROG_RENDER_SIZE
   sprite.play()
@@ -1068,7 +1069,7 @@ export async function startGameRuntime(
   const frogTextures = createFrogTextures(frogTexture)
   const frog = new AnimatedSprite([frogTextures[0], frogTextures[1]])
   frog.anchor.set(0.5, 1)
-  frog.animationSpeed = 0.06
+  frog.animationSpeed = FROG_IDLE_ANIMATION_SPEED
   frog.width = FROG_RENDER_SIZE
   frog.height = FROG_RENDER_SIZE
   frog.play()
