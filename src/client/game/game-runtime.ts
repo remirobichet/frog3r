@@ -12,7 +12,6 @@ import {
 } from 'pixi.js'
 
 import frogSpritesheetUrl from '@client/assets/frog/frog.png'
-import aimHudUrl from '@client/assets/hud/aim.png'
 import {
   frogRadius,
   maxJumpPower,
@@ -124,7 +123,10 @@ const FROG_FRAME_SIZE = 160
 const FROG_RENDER_SIZE = frogRadius * 4
 const FROG_VISUAL_Y_OFFSET = 24
 const FROG_FACING_DEAD_ZONE = 0.01
-const AIM_RENDER_SIZE = 96
+const AIM_ARROW_LENGTH = 92
+const AIM_ARROW_HEAD_LENGTH = 28
+const AIM_ARROW_HALF_HEIGHT = 16
+const AIM_ARROW_TAIL_WIDTH = 8
 const POWER_INDICATOR_WIDTH = 76
 const POWER_INDICATOR_HEIGHT = 10
 const POWER_INDICATOR_DISTANCE = 78
@@ -649,6 +651,23 @@ function drawPowerIndicator(
   powerIndicator.fill({ color, alpha: 0.92 })
 }
 
+function drawAimArrow(aim: Graphics): void {
+  aim.clear()
+  aim.moveTo(0, -AIM_ARROW_TAIL_WIDTH / 2)
+  aim.lineTo(
+    AIM_ARROW_LENGTH - AIM_ARROW_HEAD_LENGTH,
+    -AIM_ARROW_TAIL_WIDTH / 2,
+  )
+  aim.lineTo(AIM_ARROW_LENGTH - AIM_ARROW_HEAD_LENGTH, -AIM_ARROW_HALF_HEIGHT)
+  aim.lineTo(AIM_ARROW_LENGTH, 0)
+  aim.lineTo(AIM_ARROW_LENGTH - AIM_ARROW_HEAD_LENGTH, AIM_ARROW_HALF_HEIGHT)
+  aim.lineTo(AIM_ARROW_LENGTH - AIM_ARROW_HEAD_LENGTH, AIM_ARROW_TAIL_WIDTH / 2)
+  aim.lineTo(0, AIM_ARROW_TAIL_WIDTH / 2)
+  aim.closePath()
+  aim.fill({ color: 0xe4f8c2, alpha: 0.9 })
+  aim.stroke({ color: 0x1b3f25, width: 4, alpha: 0.86 })
+}
+
 function drawTileLayers(
   tileContainer: Container,
   tilesets: LoadedTileset[],
@@ -994,7 +1013,6 @@ export async function startGameRuntime(
   const defaultLevel = getDefaultLevel()
   const defaultTilesets = await loadTilesets(defaultLevel)
   const frogTexture = await Assets.load<Texture>(frogSpritesheetUrl)
-  const aimTexture = await Assets.load<Texture>(aimHudUrl)
   const app = new Application()
   await app.init({
     width: worldWidth,
@@ -1043,10 +1061,8 @@ export async function startGameRuntime(
   const levelPlatforms = new Graphics()
   stage.addChild(levelPlatforms)
 
-  const aim = new Sprite(aimTexture)
-  aim.anchor.set(0.08, 0.5)
-  aim.width = AIM_RENDER_SIZE
-  aim.height = AIM_RENDER_SIZE
+  const aim = new Graphics()
+  drawAimArrow(aim)
   stage.addChild(aim)
 
   const frogTextures = createFrogTextures(frogTexture)
