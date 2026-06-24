@@ -13,7 +13,6 @@ import {
 
 import frogSpritesheetUrl from '@client/assets/frog/frog.png'
 import aimHudUrl from '@client/assets/hud/aim.png'
-import terrainTilesetUrl from '@client/assets/tiles/full.png'
 import {
   frogRadius,
   maxJumpPower,
@@ -749,18 +748,6 @@ function getTilesetAssetUrl(source: string): string | null {
 }
 
 async function loadTilesets(level: LevelData): Promise<LoadedTileset[]> {
-  if (level.tilesets.length === 0) {
-    const texture = await Assets.load<Texture>(terrainTilesetUrl)
-    return [
-      {
-        firstgid: 1,
-        texture,
-        columns: Math.floor(texture.width / level.tileWidth),
-        frameTextures: new Map<number, Texture>(),
-      },
-    ]
-  }
-
   const loadedTilesets = await Promise.all(
     level.tilesets.map(async (tileset) => {
       const assetUrl = getTilesetAssetUrl(tileset.source)
