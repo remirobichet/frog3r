@@ -172,6 +172,59 @@ function overlapsFinish(finish: Platform, position: Vector2): boolean {
   )
 }
 
+function crossesFinish(
+  finish: Platform,
+  previousPosition: Vector2,
+  nextPosition: Vector2,
+): boolean {
+  const verticalLandingTolerance = 8
+  const minX = finish.x - frogRadius
+  const maxX = finish.x + finish.width + frogRadius
+  const minY = finish.y
+  const maxY = finish.y + finish.height + verticalLandingTolerance
+  const deltaX = nextPosition.x - previousPosition.x
+  const deltaY = nextPosition.y - previousPosition.y
+  let entryRatio = 0
+  let exitRatio = 1
+
+  const updateAxis = (
+    start: number,
+    delta: number,
+    min: number,
+    max: number,
+  ): boolean => {
+    if (delta === 0) {
+      return start >= min && start <= max
+    }
+
+    const firstRatio = (min - start) / delta
+    const secondRatio = (max - start) / delta
+    entryRatio = Math.max(entryRatio, Math.min(firstRatio, secondRatio))
+    exitRatio = Math.min(exitRatio, Math.max(firstRatio, secondRatio))
+
+    return entryRatio <= exitRatio
+  }
+
+  return (
+    updateAxis(previousPosition.x, deltaX, minX, maxX) &&
+    updateAxis(previousPosition.y, deltaY, minY, maxY) &&
+    exitRatio >= 0 &&
+    entryRatio <= 1
+  )
+}
+
+function finishRunAtPosition(state: FrogRunState, position: Vector2): FrogRunState {
+  return {
+    ...state,
+    phase: 'finished',
+    frog: {
+      position,
+      velocity: { x: 0, y: 0 },
+    },
+    finishedAtJumpCount: state.jumpCount,
+  }
+}
+
 function findLandingPlatform(
   previousPosition: Vector2,
   nextPosition: Vector2,
@@ -563,23 +616,34 @@ function simulateGroundSlide(
     : { x: 0, y: 0 }
 
   if (!supportedPlatform?.slippery || state.frog.velocity.x === 0) {
-    return state.frog.velocity.x === 0 && platformDelta.x === 0 && platformDelta.y === 0
-      ? state
-      : {
-          ...state,
-          frog: {
-            ...state.frog,
-            position: {
-              x: clamp(
-                state.frog.position.x + platformDelta.x,
-                frogRadius,
-                level.worldWidth - frogRadius,
-              ),
-              y: state.frog.position.y + platformDelta.y,
-            },
-            velocity: { x: 0, y: 0 },
-          },
-        }
+    if (state.frog.velocity.x === 0 && platformDelta.x === 0 && platformDelta.y === 0) {
+      return state
+    }
+
+    const movedPosition = {
+      x: clamp(
+        state.frog.position.x + platformDelta.x,
+        frogRadius,
+        level.worldWidth - frogRadius,
+      ),
+      y: state.frog.position.y + platformDelta.y,
+    }
+
+    if (
+      overlapsFinish(level.finish, movedPosition) ||
+      crossesFinish(level.finish, state.frog.position, movedPosition)
+    ) {
+      return finishRunAtPosition(state, movedPosition)
+    }
+
+    return {
+      ...state,
+      frog: {
+        ...state.frog,
+        position: movedPosition,
+        velocity: { x: 0, y: 0 },
+      },
+    }
   }
 
   const nextX = state.frog.position.x + platformDelta.x + state.frog.velocity.x * deltaSeconds
@@ -604,6 +668,13 @@ function simulateGroundSlide(
     level,
     state.elapsedSeconds,
   )
+
+  if (
+    overlapsFinish(level.finish, slideCollision.position) ||
+    crossesFinish(level.finish, state.frog.position, slideCollision.position)
+  ) {
+    return finishRunAtPosition(state, slideCollision.position)
+  }
 
   if (!nextSupportedPlatform) {
     return {
@@ -909,12 +980,7 @@ export function simulateFrogRunTick(
 
   if (overlapsFinish(level.finish, landedPosition)) {
     return {
-      ...state,
-      phase: 'finished',
-      frog: {
-        position: landedPosition,
-        velocity: { x: 0, y: 0 },
-      },
+      ...finishRunAtPosition(state, landedPosition),
       jumpCount: nextJumpCount,
       finishedAtJumpCount: nextJumpCount,
     }

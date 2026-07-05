@@ -156,6 +156,51 @@ describe('gameplay basics', () => {
     expect(state.jumpDirection.x).toBeLessThan(0)
   })
 
+  it('finishes the run when sliding into the finish marker', () => {
+    const slipperyLevel = {
+      ...level,
+      spawn: { x: 150, y: level.spawn.y },
+      platforms: [
+        {
+          x: 0,
+          y: level.spawn.y,
+          width: 400,
+          height: 40,
+          slippery: true,
+          trampoline: false,
+          trap: false,
+        },
+      ],
+      finish: {
+        x: 175,
+        y: level.spawn.y,
+        width: 20,
+        height: 40,
+        slippery: false,
+        trampoline: false,
+        trap: false,
+      },
+    }
+
+    const state = simulateTick(
+      {
+        ...createInitialGameState(slipperyLevel),
+        frog: {
+          position: slipperyLevel.spawn,
+          velocity: { x: 600, y: 0 },
+        },
+        jumpCount: 1,
+      },
+      1 / 60,
+      slipperyLevel,
+    )
+
+    expect(state.phase).toBe('finished')
+    expect(state.frog.velocity).toEqual({ x: 0, y: 0 })
+    expect(state.jumpCount).toBe(1)
+    expect(state.finishedAtJumpCount).toBe(1)
+  })
+
   it('stops slippery ground slide against platform walls', () => {
     const wall = {
       x: 180,
