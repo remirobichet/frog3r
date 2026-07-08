@@ -3,13 +3,11 @@ import type { Client } from 'colyseus'
 
 import { fixedTimestepMs } from '../../shared/constants/game'
 import { availableLevels, defaultLevelId, getLevelById } from '../../shared/levels'
-import type { ClientInputMessage, JoinedMessage, StateMessage } from '../../shared/types/network'
+import type { JoinedMessage, StateMessage } from '../../shared/types/network'
 import type {
-  CoopPlayerId,
   GameMode,
   GameState,
   PlayerId,
-  PlayerRole,
   Vector2,
   VersusPlayerRun,
   VersusState,
@@ -27,26 +25,20 @@ import {
 } from '../../shared/utils/gameplay'
 import type { LevelData } from '../../shared/types/level'
 
+import { routeClientInput } from './input-routing'
+import {
+  findPlayerByRole,
+  getInputPlayerForRole,
+  getOpenPlayerSlot,
+  maxClientsByMode,
+  playerOrder,
+} from './player-slots'
+
 interface RoomOptions {
   inviteCode: string
   mode?: GameMode
 }
 
-const coopPlayerOrder: CoopPlayerId[] = ['player1', 'player2', 'player3']
-const playerOrder: PlayerId[] = [
-  'player1',
-  'player2',
-  'player3',
-  'player4',
-  'player5',
-  'player6',
-  'player7',
-  'player8',
-]
-const maxClientsByMode: Record<GameMode, number> = {
-  coop: 3,
-  versus: 8,
-}
 const pingLifetimeSeconds = 2
 const maxPlayerNameLength = 18
 const allowDevelopmentInputs = process.env.NODE_ENV !== 'production'
@@ -100,34 +92,6 @@ function createVersusPlayerRun(
   }
 }
 
-function isCoopPlayerId(playerId: PlayerId): playerId is CoopPlayerId {
-  return coopPlayerOrder.includes(playerId as CoopPlayerId)
-}
-
-function findPlayerByRole(state: GameState, role: PlayerRole): CoopPlayerId {
-  if (state.roles.player1 === role) {
-    return 'player1'
-  }
-
-  if (state.roles.player2 === role) {
-    return 'player2'
-  }
-
-  return 'player3'
-}
-
-function getInputPlayerForRole(
-  state: GameState,
-  playerId: PlayerId,
-  role: PlayerRole,
-): CoopPlayerId | null {
-  if (allowDevelopmentInputs) {
-    return findPlayerByRole(state, role)
-  }
-
-  return isCoopPlayerId(playerId) ? playerId : null
-}
-
 function sanitizePlayerName(name: string, playerId: PlayerId): string {
   const trimmedName = name.trim().replace(/\s+/g, ' ')
   if (!trimmedName) {
@@ -140,16 +104,6 @@ function sanitizePlayerName(name: string, playerId: PlayerId): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
-}
-
-function getOpenPlayerSlot(
-  sessionToPlayer: Map<string, PlayerId>,
-  mode: GameMode,
-): PlayerId | null {
-  const assignedPlayers = new Set(sessionToPlayer.values())
-  const availableSlots = mode === 'coop' ? coopPlayerOrder : playerOrder
-
-  return availableSlots.find((playerId) => !assignedPlayers.has(playerId)) ?? null
 }
 
 export class GameRoom extends Room {
@@ -178,78 +132,28 @@ export class GameRoom extends Room {
     })
     this.gameState = createInitialGameState(getLevelById(this.currentLevelId), this.mode)
 
-    this.onMessage('input', (client: Client, input: ClientInputMessage) => {
+    this.onMessage('input', (client: Client, input) => {
       const playerId = this.sessionToPlayer.get(client.sessionId)
-      if (input.type === 'selectLevel') {
-        if (client.sessionId !== this.creatorSessionId) {
-          return
-        }
+      const shouldBroadcast = routeClientInput({
+        clientSessionId: client.sessionId,
+        playerId,
+        creatorSessionId: this.creatorSessionId,
+        input,
+        allowDevelopmentInputs,
+        handlers: {
+          selectLevel: (levelId) => this.setLevel(levelId),
+          aim: (inputPlayerId, direction) => this.handleAimInput(inputPlayerId, direction),
+          charge: (inputPlayerId, active) => this.handleChargeInput(inputPlayerId, active),
+          setName: (inputPlayerId, name) => this.handleSetNameInput(inputPlayerId, name),
+          ping: (inputPlayerId, position) => this.handlePingInput(inputPlayerId, position),
+          debugTeleport: (inputPlayerId, position) => this.handleDebugTeleport(inputPlayerId, position),
+          miniJump: (inputPlayerId) => this.handleMiniJumpInput(inputPlayerId),
+        },
+      })
 
-        this.setLevel(input.levelId)
+      if (shouldBroadcast) {
         this.broadcastState()
-        return
       }
-
-      if (!playerId) {
-        return
-      }
-
-      if (input.type === 'aim') {
-        this.handleAimInput(playerId, input.direction)
-        return
-      }
-
-      if (input.type === 'charge') {
-        this.handleChargeInput(playerId, input.active)
-        return
-      }
-
-      if (input.type === 'setName') {
-        this.gameState = {
-          ...this.gameState,
-          players: {
-            ...this.gameState.players,
-            [playerId]: {
-              ...this.gameState.players[playerId],
-              name: sanitizePlayerName(input.name, playerId),
-            },
-          },
-        }
-        this.broadcastState()
-        return
-      }
-
-      if (input.type === 'ping') {
-        const level = getLevelById(this.currentLevelId)
-        this.gameState = {
-          ...this.gameState,
-          pings: [
-            ...this.gameState.pings,
-            {
-              playerId,
-              position: {
-                x: clamp(input.position.x, 0, level.worldWidth),
-                y: clamp(input.position.y, 0, level.worldHeight),
-              },
-              createdAtSeconds: this.gameState.elapsedSeconds,
-            },
-          ],
-        }
-        this.broadcastState()
-        return
-      }
-
-      if (input.type === 'debugTeleport') {
-        if (!allowDevelopmentInputs) {
-          return
-        }
-
-        this.handleDebugTeleport(playerId, input.position)
-        this.broadcastState()
-        return
-      }
-
-      this.handleMiniJumpInput(playerId)
     })
 
     this.setSimulationInterval(() => {
@@ -309,7 +213,12 @@ export class GameRoom extends Room {
       return
     }
 
-    const directionPlayer = getInputPlayerForRole(this.gameState, playerId, 'direction')
+    const directionPlayer = getInputPlayerForRole(
+      this.gameState,
+      playerId,
+      'direction',
+      allowDevelopmentInputs,
+    )
     if (directionPlayer) {
       this.directionIntent[directionPlayer] = direction
     }
@@ -321,7 +230,12 @@ export class GameRoom extends Room {
       return
     }
 
-    const powerPlayer = getInputPlayerForRole(this.gameState, playerId, 'power')
+    const powerPlayer = getInputPlayerForRole(
+      this.gameState,
+      playerId,
+      'power',
+      allowDevelopmentInputs,
+    )
     if (powerPlayer) {
       this.chargingIntent[powerPlayer] = active
     }
@@ -333,9 +247,45 @@ export class GameRoom extends Room {
       return
     }
 
-    const midJumpPlayer = getInputPlayerForRole(this.gameState, playerId, 'midJump')
+    const midJumpPlayer = getInputPlayerForRole(
+      this.gameState,
+      playerId,
+      'midJump',
+      allowDevelopmentInputs,
+    )
     if (midJumpPlayer) {
       this.miniJumpQueued[midJumpPlayer] = true
+    }
+  }
+
+  private handleSetNameInput(playerId: PlayerId, name: string): void {
+    this.gameState = {
+      ...this.gameState,
+      players: {
+        ...this.gameState.players,
+        [playerId]: {
+          ...this.gameState.players[playerId],
+          name: sanitizePlayerName(name, playerId),
+        },
+      },
+    }
+  }
+
+  private handlePingInput(playerId: PlayerId, position: Vector2): void {
+    const level = getLevelById(this.currentLevelId)
+    this.gameState = {
+      ...this.gameState,
+      pings: [
+        ...this.gameState.pings,
+        {
+          playerId,
+          position: {
+            x: clamp(position.x, 0, level.worldWidth),
+            y: clamp(position.y, 0, level.worldHeight),
+          },
+          createdAtSeconds: this.gameState.elapsedSeconds,
+        },
+      ],
     }
   }
 
