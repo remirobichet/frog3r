@@ -138,3 +138,16 @@ pnpm test
 - The browser client assumes the game server is reachable on port `2567`
 - Invite links use the current browser origin and append `?room=INVITE_CODE`
 - The production server build is emitted to `dist/server`
+
+## Possible new features
+
+- Add jump prediction arc Show a dotted trajectory while aiming/charging. This would immediately make the game feel more readable and less random, especially for new players.
+- Add coyote-time style forgiveness Allow a tiny landing/edge grace window for mid-air jump or platform detection. This makes controls feel fairer without making the game easier in a cheap way.
+- Improve power curve Current charge is linear. Consider a curved charge meter: low power charges quickly, high power charges slowly. This gives players more precision and makes max-power timing more interesting.
+- Add role-specific feedback Each role should get clearer feedback: Aim: visible aim ownership and cursor/arrow highlight. Charge: charge pulse, threshold ticks, release anticipation. Mid-jump: “ready” indicator only when airborne and unused.
+- Add fail-state variety Right now failures reset. Add small outcome differences: Trap impact animation. Frog stunned briefly before reset. “Best attempt distance” marker. This makes failure feel less abrupt.
+- Add collectibles or optional routing Coins, flies, checkpoints, or bonus lilies would give players reasons to take risky jumps instead of only reaching the finish.
+- Add checkpoints Full reset is harsh. You could have checkpoint platforms or checkpoint flowers. Good for longer levels and co-op frustration control.
+- Add level mechanics Current mechanics are platforms/traps/trampolines/slippery/moving. Strong next additions: Wind zones. Water current. Breakable platforms. One-way platforms. Sticky walls. Rotating platforms. Bounce pads with direction.
+- Improve versus fairness Versus currently starts runs per connected player. Consider: Countdown start. Restart race button. Ghost replay of best run. Per-player ready state. This makes versus feel like a proper race mode.
+- Add scoring Coop could score by: Jump count. Time. Death/reset count. Collectibles. This gives replayability after “just finish the level”.
