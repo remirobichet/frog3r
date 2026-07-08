@@ -45,10 +45,14 @@ export function createInitialGameState(
     pings: [],
     versus: mode === 'versus'
       ? {
-          status: 'running',
+          status: 'waiting',
+          raceElapsedSeconds: 0,
+          countdownRemainingSeconds: 0,
+          ready: {},
           runs: {},
           winnerPlayerId: null,
           results: [],
+          bestGhost: null,
         }
       : null,
   }

@@ -34,6 +34,13 @@ export interface PlayerRoleBanner {
   nameInput: HTMLInputElement
 }
 
+export interface VersusControls {
+  panel: HTMLElement
+  readyButton: HTMLButtonElement
+  restartButton: HTMLButtonElement
+  status: HTMLParagraphElement
+}
+
 export interface ResetNoticeBanner {
   element: HTMLParagraphElement
 }
@@ -93,6 +100,15 @@ export function getPlayerRoleBanner(): PlayerRoleBanner {
     value: mustGetElementById<HTMLSpanElement>('player-role-value'),
     hint: mustGetElementById<HTMLParagraphElement>('player-control-hint'),
     nameInput: mustGetElementById<HTMLInputElement>('player-name-input'),
+  }
+}
+
+export function getVersusControls(): VersusControls {
+  return {
+    panel: mustGetElementById<HTMLElement>('versus-controls'),
+    readyButton: mustGetElementById<HTMLButtonElement>('versus-ready'),
+    restartButton: mustGetElementById<HTMLButtonElement>('versus-restart'),
+    status: mustGetElementById<HTMLParagraphElement>('versus-status'),
   }
 }
 
@@ -158,8 +174,20 @@ export function getRoleHint(
     }
 
     const playerRun = state.versus?.runs[playerId]
+    if (state.versus?.status === 'waiting') {
+      return 'Ready up when you want to start the shared countdown.'
+    }
+
+    if (state.versus?.status === 'countdown') {
+      return 'Countdown running. Get ready to race.'
+    }
+
     if (state.versus?.status === 'finished') {
       return 'Race finished. Check the final recap.'
+    }
+
+    if (!playerRun) {
+      return 'This race is already running. Wait for the creator to restart.'
     }
 
     if (playerRun && playerRun.finishedAtSeconds !== null) {
@@ -241,6 +269,15 @@ export function getCenterNoticeMessage(
   }
 
   if (state.mode === 'versus') {
+    if (state.versus?.status === 'waiting') {
+      return 'Ready up to start the race.'
+    }
+
+    if (state.versus?.status === 'countdown') {
+      const remaining = Math.ceil(state.versus.countdownRemainingSeconds)
+      return remaining > 0 ? String(remaining) : 'Go!'
+    }
+
     const playerRun = playerId ? state.versus?.runs[playerId]?.run : null
     if (playerRun?.resetNotice) {
       return playerRun.resetNotice.message
@@ -293,6 +330,14 @@ export function getVersusPlayersSummary(state: GameState): string {
     .map((playerId) => {
       const player = state.players[playerId]
       const playerRun = versus.runs[playerId]
+      if (versus.status === 'waiting' || versus.status === 'countdown') {
+        return `${player.name}: ${versus.ready[playerId] ? 'ready' : 'not ready'}`
+      }
+
+      if (!playerRun) {
+        return `${player.name}: next race`
+      }
+
       if (playerRun && playerRun.finishedAtSeconds !== null) {
         return `${player.name}: #${playerRun.finishRank ?? '-'} ${formatRaceTime(playerRun.finishedAtSeconds)}`
       }

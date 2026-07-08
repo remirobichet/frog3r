@@ -34,7 +34,9 @@ describe('gameplay basics', () => {
 
     expect(state.mode).toBe('versus')
     expect(state.players.player8.name).toBe('Player 8')
-    expect(state.versus?.status).toBe('running')
+    expect(state.versus?.status).toBe('waiting')
+    expect(state.versus?.raceElapsedSeconds).toBe(0)
+    expect(state.versus?.countdownRemainingSeconds).toBe(0)
     expect(state.versus?.winnerPlayerId).toBeNull()
   })
 

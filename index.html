@@ -277,6 +277,7 @@
 
       #room-controls,
       #player-hud,
+      #versus-controls,
       #reset-notice,
       #game-status {
         z-index: 2;
@@ -361,6 +362,37 @@
         font-size: 0.72rem;
         line-height: 1.25;
         text-wrap: pretty;
+      }
+
+      #versus-controls {
+        position: absolute;
+        left: 50%;
+        top: 154px;
+        width: min(280px, calc(100vw - 32px));
+        padding: 10px;
+        border-radius: 16px;
+        transform: translateX(-50%);
+        text-align: center;
+      }
+
+      #versus-controls[hidden] {
+        display: none;
+      }
+
+      .versus-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      #versus-status {
+        margin: 8px 0 0;
+        color: rgba(232, 244, 219, 0.86);
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.35;
+        text-wrap: balance;
       }
 
       #reset-notice {
@@ -629,6 +661,18 @@
             >Spectator</span
           >
           <p id="player-control-hint">Waiting for a player role.</p>
+        </section>
+
+        <section id="versus-controls" aria-live="polite" hidden>
+          <div class="versus-action-row">
+            <button id="versus-ready" class="lobby-action compact" type="button">
+              Ready
+            </button>
+            <button id="versus-restart" class="lobby-action compact" type="button">
+              Restart
+            </button>
+          </div>
+          <p id="versus-status">Waiting for racers.</p>
         </section>
 
         <p id="reset-notice" aria-live="assertive" hidden></p>

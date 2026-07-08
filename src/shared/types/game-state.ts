@@ -56,6 +56,21 @@ export interface VersusPlayerRun {
   finishRank: number | null
 }
 
+export interface VersusGhostSample {
+  elapsedSeconds: number
+  phase: GamePhase
+  frog: FrogBodyState
+  jumpDirection: Vector2
+}
+
+export interface VersusBestGhost {
+  playerId: PlayerId
+  name: string
+  finishedAtSeconds: number
+  jumpCount: number
+  samples: VersusGhostSample[]
+}
+
 export interface VersusResultEntry {
   playerId: PlayerId
   name: string
@@ -65,10 +80,14 @@ export interface VersusResultEntry {
 }
 
 export interface VersusState {
-  status: 'running' | 'finished'
+  status: 'waiting' | 'countdown' | 'running' | 'finished'
+  raceElapsedSeconds: number
+  countdownRemainingSeconds: number
+  ready: Partial<Record<PlayerId, boolean>>
   runs: Partial<Record<PlayerId, VersusPlayerRun>>
   winnerPlayerId: PlayerId | null
   results: VersusResultEntry[]
+  bestGhost: VersusBestGhost | null
 }
 
 export interface GameState extends FrogRunState {

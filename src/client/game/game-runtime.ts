@@ -9,7 +9,7 @@ import {
 } from 'pixi.js'
 
 import frogSpritesheetUrl from '@client/assets/frog/frog.png'
-import type { FrogAnimation, FrogView } from '@client/game/frog-renderer'
+import type { FrogAnimation, FrogView, FrogViewKey } from '@client/game/frog-renderer'
 import {
   FROG_IDLE_ANIMATION_SPEED,
   FROG_RENDER_SIZE,
@@ -32,6 +32,7 @@ import {
   getRoleDisplayName,
   getRoleHint,
   getRoomControls,
+  getVersusControls,
   getVersusPlayersSummary,
   syncLevelOptions,
 } from '@client/game/hud'
@@ -87,6 +88,56 @@ const POWER_INDICATOR_WIDTH = 76
 const POWER_INDICATOR_HEIGHT = 10
 const POWER_INDICATOR_DISTANCE = 78
 const POWER_INDICATOR_HIGH_POWER_THRESHOLD = 0.72
+
+function formatSeconds(seconds: number): string {
+  return `${seconds.toFixed(2)}s`
+}
+
+function getVersusControlStatus(state: GameState, playerId: PlayerId | null): string {
+  const versus = state.versus
+  if (!versus) {
+    return 'Waiting for racers.'
+  }
+
+  const ghostLine = versus.bestGhost
+    ? `Best ghost: ${versus.bestGhost.name} ${formatSeconds(versus.bestGhost.finishedAtSeconds)}`
+    : 'Best ghost: none yet'
+
+  if (versus.status === 'waiting') {
+    const connectedPlayerIds = Object.entries(state.players)
+      .filter(([, player]) => player.connected)
+      .map(([connectedPlayerId]) => connectedPlayerId as PlayerId)
+    const readyCount = connectedPlayerIds.filter(
+      (connectedPlayerId) => versus.ready[connectedPlayerId],
+    ).length
+    return `Waiting: ${readyCount}/${connectedPlayerIds.length} ready. ${ghostLine}`
+  }
+
+  if (versus.status === 'countdown') {
+    return `Starting in ${Math.ceil(versus.countdownRemainingSeconds)}. ${ghostLine}`
+  }
+
+  if (versus.status === 'finished') {
+    return `Race finished. ${ghostLine}`
+  }
+
+  const myRun = playerId ? versus.runs[playerId] : null
+  if (playerId && !myRun) {
+    return `Joined mid-race. Waiting for restart. ${ghostLine}`
+  }
+
+  if (myRun?.finishedAtSeconds !== null && myRun?.finishedAtSeconds !== undefined) {
+    return `You finished in ${formatSeconds(myRun.finishedAtSeconds)}. ${ghostLine}`
+  }
+
+  return `Race time ${formatSeconds(versus.raceElapsedSeconds)}. ${ghostLine}`
+}
+
+function getLevelRenderElapsedSeconds(state: GameState): number {
+  return state.mode === 'versus'
+    ? (state.versus?.raceElapsedSeconds ?? 0)
+    : state.elapsedSeconds
+}
 
 function getFrogRenderPosition(frogPosition: Vector2): Vector2 {
   return {
@@ -195,6 +246,7 @@ export async function startGameRuntime(
   const keyboard = setupKeyboard()
   const mouse = setupMouse(app.canvas, defaultLevel)
   const roomControls = getRoomControls()
+  const versusControls = getVersusControls()
   const gameStatus = getGameStatusPanel()
   const playerRoleBanner = getPlayerRoleBanner()
   const resetNoticeBanner = getResetNoticeBanner()
@@ -252,7 +304,7 @@ export async function startGameRuntime(
   let currentFrogAnimation: FrogAnimation = 'idle'
   let lastSentPlayerName = ''
   let lastCenterNoticeMessage: string | null = null
-  const versusFrogViews = new Map<PlayerId, FrogView>()
+  const versusFrogViews = new Map<FrogViewKey, FrogView>()
 
   drawLevel(
     levelBackground,
@@ -297,6 +349,22 @@ export async function startGameRuntime(
     params.room.send('input', input)
   }
 
+  const handleVersusReadyClick = (): void => {
+    const state = latestState
+    if (!state || state.mode !== 'versus' || !myPlayerId) {
+      return
+    }
+
+    sendInput({
+      type: 'setReady',
+      ready: state.versus?.ready[myPlayerId] !== true,
+    })
+  }
+
+  const handleVersusRestartClick = (): void => {
+    sendInput({ type: 'restartRace' })
+  }
+
   const handleLevelChange = (): void => {
     if (!isCreator) {
       return
@@ -333,6 +401,8 @@ export async function startGameRuntime(
   }
 
   roomControls.select.addEventListener('change', handleLevelChange)
+  versusControls.readyButton.addEventListener('click', handleVersusReadyClick)
+  versusControls.restartButton.addEventListener('click', handleVersusRestartClick)
   playerRoleBanner.nameInput.addEventListener('change', sendPlayerName)
   playerRoleBanner.nameInput.addEventListener(
     'keydown',
@@ -367,6 +437,9 @@ export async function startGameRuntime(
     if (levelChanged) {
       const selectedLevel = getLevelById(message.levelId)
       const cachedTilesets = tilesetsByLevelId.get(selectedLevel.id)
+      const levelRenderElapsedSeconds = getLevelRenderElapsedSeconds(
+        message.gameState,
+      )
       currentLevel = selectedLevel
 
       if (cachedTilesets) {
@@ -377,7 +450,7 @@ export async function startGameRuntime(
           currentTilesets,
           levelPlatforms,
           currentLevel,
-          message.gameState.elapsedSeconds,
+          levelRenderElapsedSeconds,
         )
       } else {
         void loadTilesets(selectedLevel).then((tilesets) => {
@@ -391,11 +464,11 @@ export async function startGameRuntime(
             levelBackground,
             levelTiles,
             currentTilesets,
-            levelPlatforms,
-            currentLevel,
-            message.gameState.elapsedSeconds,
-          )
-        })
+              levelPlatforms,
+              currentLevel,
+              getLevelRenderElapsedSeconds(message.gameState),
+            )
+          })
       }
     }
 
@@ -406,7 +479,7 @@ export async function startGameRuntime(
         currentTilesets,
         levelPlatforms,
         currentLevel,
-        message.gameState.elapsedSeconds,
+        getLevelRenderElapsedSeconds(message.gameState),
       )
     }
     syncLevelOptions(roomControls.select, currentLevelOptions, currentLevel.id)
@@ -464,6 +537,21 @@ export async function startGameRuntime(
       message.gameState.mode === 'coop' &&
       message.gameState.phase === 'finished'
     playerRoleBanner.hint.textContent = roleHint
+    versusControls.panel.hidden = message.gameState.mode !== 'versus'
+    if (message.gameState.mode === 'versus') {
+      const versus = message.gameState.versus
+      const isReady = Boolean(message.playerId && versus?.ready[message.playerId])
+      versusControls.readyButton.textContent = isReady ? 'Not Ready' : 'Ready'
+      versusControls.readyButton.disabled =
+        !message.playerId
+        || versus?.status === 'running'
+        || versus?.status === 'countdown'
+      versusControls.restartButton.disabled = !isCreator
+      versusControls.status.textContent = getVersusControlStatus(
+        message.gameState,
+        message.playerId,
+      )
+    }
     const centerNoticeMessage = getCenterNoticeMessage(
       message.gameState,
       message.playerId,
@@ -497,7 +585,7 @@ export async function startGameRuntime(
     const canSendGameplayInput = Boolean(
       activeRun &&
       activeRun.phase !== 'finished' &&
-      gameState.versus?.status !== 'finished',
+      (!isVersus || gameState.versus?.status === 'running'),
     )
     const frogRenderPosition = activeRun
       ? getFrogRenderPosition(activeRun.frog.position)
@@ -627,6 +715,8 @@ export async function startGameRuntime(
   return {
     destroy: () => {
       roomControls.select.removeEventListener('change', handleLevelChange)
+      versusControls.readyButton.removeEventListener('click', handleVersusReadyClick)
+      versusControls.restartButton.removeEventListener('click', handleVersusRestartClick)
       playerRoleBanner.nameInput.removeEventListener('change', sendPlayerName)
       playerRoleBanner.nameInput.removeEventListener(
         'keydown',

@@ -9,6 +9,8 @@ import type {
   GameState,
   PlayerId,
   Vector2,
+  VersusBestGhost,
+  VersusGhostSample,
   VersusPlayerRun,
   VersusState,
 } from '../../shared/types/game-state'
@@ -42,6 +44,8 @@ interface RoomOptions {
 const pingLifetimeSeconds = 2
 const maxPlayerNameLength = 18
 const allowDevelopmentInputs = process.env.NODE_ENV !== 'production'
+const versusCountdownSeconds = 3
+const ghostSampleIntervalSeconds = 0.1
 
 function createDirectionIntent(): Record<PlayerId, Vector2> {
   return {
@@ -69,12 +73,16 @@ function createBooleanIntent(value: boolean): Record<PlayerId, boolean> {
   }
 }
 
-function createVersusState(): VersusState {
+function createVersusState(bestGhost: VersusBestGhost | null = null): VersusState {
   return {
-    status: 'running',
+    status: 'waiting',
+    raceElapsedSeconds: 0,
+    countdownRemainingSeconds: 0,
+    ready: {},
     runs: {},
     winnerPlayerId: null,
     results: [],
+    bestGhost,
   }
 }
 
@@ -120,6 +128,9 @@ export class GameRoom extends Room {
   private chargingIntent: Record<PlayerId, boolean> = createBooleanIntent(false)
   private miniJumpQueued: Record<PlayerId, boolean> = createBooleanIntent(false)
   private wasCharging: Record<PlayerId, boolean> = createBooleanIntent(false)
+  private bestGhostByLevel = new Map<string, VersusBestGhost>()
+  private currentGhostSamples: Partial<Record<PlayerId, VersusGhostSample[]>> = {}
+  private lastGhostSampleAt: Partial<Record<PlayerId, number>> = {}
 
   public onCreate(options: RoomOptions): void {
     this.inviteCode = options.inviteCode
@@ -148,6 +159,8 @@ export class GameRoom extends Room {
           ping: (inputPlayerId, position) => this.handlePingInput(inputPlayerId, position),
           debugTeleport: (inputPlayerId, position) => this.handleDebugTeleport(inputPlayerId, position),
           miniJump: (inputPlayerId) => this.handleMiniJumpInput(inputPlayerId),
+          setReady: (inputPlayerId, ready) => this.handleSetReadyInput(inputPlayerId, ready),
+          restartRace: () => this.restartVersusRace(),
         },
       })
 
@@ -176,7 +189,13 @@ export class GameRoom extends Room {
     this.sessionToPlayer.set(client.sessionId, playerId)
     this.gameState = this.setPlayerConnected(this.gameState, playerId, true)
     if (this.mode === 'versus') {
-      this.resetVersusRun(playerId)
+      if (this.gameState.versus?.status === 'running') {
+        this.setVersusPlayerReady(playerId, false)
+        this.resetPlayerInputState(playerId)
+      } else {
+        this.resetVersusRun(playerId)
+      }
+      this.resetVersusCountdownIfActive()
     }
 
     const joinedMessage: JoinedMessage = {
@@ -203,12 +222,17 @@ export class GameRoom extends Room {
     }
 
     this.resetPlayerInputState(playerId)
+    this.resetVersusCountdownIfActive()
     this.finishVersusIfAllConnectedPlayersAreDone()
     this.broadcastState()
   }
 
   private handleAimInput(playerId: PlayerId, direction: Vector2): void {
     if (this.mode === 'versus') {
+      if (this.gameState.versus?.status !== 'running') {
+        return
+      }
+
       this.directionIntent[playerId] = direction
       return
     }
@@ -226,6 +250,10 @@ export class GameRoom extends Room {
 
   private handleChargeInput(playerId: PlayerId, active: boolean): void {
     if (this.mode === 'versus') {
+      if (this.gameState.versus?.status !== 'running') {
+        return
+      }
+
       this.chargingIntent[playerId] = active
       return
     }
@@ -243,6 +271,10 @@ export class GameRoom extends Room {
 
   private handleMiniJumpInput(playerId: PlayerId): void {
     if (this.mode === 'versus') {
+      if (this.gameState.versus?.status !== 'running') {
+        return
+      }
+
       this.miniJumpQueued[playerId] = true
       return
     }
@@ -256,6 +288,50 @@ export class GameRoom extends Room {
     if (midJumpPlayer) {
       this.miniJumpQueued[midJumpPlayer] = true
     }
+  }
+
+  private setVersusPlayerReady(playerId: PlayerId, ready: boolean): void {
+    const versus = this.gameState.versus ?? createVersusState(
+      this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+    )
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...versus,
+        ready: {
+          ...versus.ready,
+          [playerId]: ready,
+        },
+      },
+    }
+  }
+
+  private handleSetReadyInput(playerId: PlayerId, ready: boolean): void {
+    if (this.mode !== 'versus') {
+      return
+    }
+
+    const versus = this.gameState.versus ?? createVersusState(
+      this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+    )
+    if (versus.status === 'running') {
+      return
+    }
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...versus,
+        status: versus.status === 'finished' ? 'waiting' : versus.status,
+        countdownRemainingSeconds:
+          versus.status === 'finished' ? 0 : versus.countdownRemainingSeconds,
+        ready: {
+          ...versus.ready,
+          [playerId]: ready,
+        },
+      },
+    }
+    this.tryStartVersusCountdown()
   }
 
   private handleSetNameInput(playerId: PlayerId, name: string): void {
@@ -292,10 +368,12 @@ export class GameRoom extends Room {
   private handleDebugTeleport(playerId: PlayerId, position: Vector2): void {
     const level = getLevelById(this.currentLevelId)
     if (this.mode === 'versus') {
-      const versus = this.gameState.versus ?? createVersusState()
+      const versus = this.gameState.versus ?? createVersusState(
+        this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+      )
       const playerRun = versus.runs[playerId] ?? createVersusPlayerRun(
         level,
-        this.gameState.elapsedSeconds,
+        versus.raceElapsedSeconds,
       )
       this.gameState = {
         ...this.gameState,
@@ -382,16 +460,50 @@ export class GameRoom extends Room {
   private tickVersus(deltaSeconds: number): void {
     const level = getLevelById(this.currentLevelId)
     const nextElapsedSeconds = this.gameState.elapsedSeconds + deltaSeconds
-    const versus = this.gameState.versus ?? createVersusState()
+    const versus = this.gameState.versus ?? createVersusState(
+      this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+    )
+
+    if (versus.status === 'waiting') {
+      this.gameState = this.expirePings({
+        ...this.gameState,
+        elapsedSeconds: nextElapsedSeconds,
+        versus,
+      })
+      return
+    }
+
+    if (versus.status === 'countdown') {
+      const countdownRemainingSeconds = Math.max(
+        0,
+        versus.countdownRemainingSeconds - deltaSeconds,
+      )
+      this.gameState = this.expirePings({
+        ...this.gameState,
+        elapsedSeconds: nextElapsedSeconds,
+        versus: {
+          ...versus,
+          countdownRemainingSeconds,
+        },
+      })
+
+      if (countdownRemainingSeconds <= 0) {
+        this.startVersusRace()
+      }
+
+      return
+    }
 
     if (versus.status === 'finished') {
       this.gameState = this.expirePings({
         ...this.gameState,
         elapsedSeconds: nextElapsedSeconds,
+        versus,
       })
       return
     }
 
+    const nextRaceElapsedSeconds = versus.raceElapsedSeconds + deltaSeconds
     const runs = { ...versus.runs }
     let results = versus.results
     let winnerPlayerId = versus.winnerPlayerId
@@ -403,7 +515,7 @@ export class GameRoom extends Room {
 
       const currentPlayerRun = runs[playerId] ?? createVersusPlayerRun(
         level,
-        this.gameState.elapsedSeconds,
+        versus.raceElapsedSeconds,
       )
       if (currentPlayerRun.finishedAtSeconds !== null) {
         runs[playerId] = currentPlayerRun
@@ -412,7 +524,7 @@ export class GameRoom extends Room {
 
       let run = {
         ...currentPlayerRun.run,
-        elapsedSeconds: this.gameState.elapsedSeconds,
+        elapsedSeconds: versus.raceElapsedSeconds,
       }
       const directionInput = this.directionIntent[playerId]
       const isCharging = this.chargingIntent[playerId]
@@ -433,8 +545,9 @@ export class GameRoom extends Room {
 
       run = {
         ...simulateFrogRunTick(run, deltaSeconds, level),
-        elapsedSeconds: nextElapsedSeconds,
+        elapsedSeconds: nextRaceElapsedSeconds,
       }
+      this.recordGhostSample(playerId, run)
       if (
         run.phase === 'resetting'
         || (
@@ -448,7 +561,7 @@ export class GameRoom extends Room {
 
       if (run.phase === 'finished') {
         const rank = results.length + 1
-        const finishedAtSeconds = nextElapsedSeconds
+        const finishedAtSeconds = nextRaceElapsedSeconds
         results = [
           ...results,
           {
@@ -460,6 +573,7 @@ export class GameRoom extends Room {
           },
         ]
         winnerPlayerId = winnerPlayerId ?? playerId
+        this.updateBestGhost(playerId, finishedAtSeconds, run)
         this.resetPlayerInputState(playerId)
         runs[playerId] = {
           run,
@@ -479,9 +593,13 @@ export class GameRoom extends Room {
       elapsedSeconds: nextElapsedSeconds,
       versus: {
         status: 'running',
+        raceElapsedSeconds: nextRaceElapsedSeconds,
+        countdownRemainingSeconds: 0,
+        ready: versus.ready,
         runs,
         winnerPlayerId,
         results,
+        bestGhost: this.bestGhostByLevel.get(this.currentLevelId) ?? null,
       },
     })
     this.finishVersusIfAllConnectedPlayersAreDone()
@@ -495,6 +613,8 @@ export class GameRoom extends Room {
 
     this.currentLevelId = nextLevel.id
     this.roundRevision += 1
+    this.currentGhostSamples = {}
+    this.lastGhostSampleAt = {}
     this.gameState = this.createFreshGameState(nextLevel)
     this.resetInputState()
   }
@@ -518,24 +638,196 @@ export class GameRoom extends Room {
     return {
       ...nextState,
       versus: {
-        status: 'running',
+        status: 'waiting',
+        raceElapsedSeconds: 0,
+        countdownRemainingSeconds: 0,
+        ready: {},
         runs,
         winnerPlayerId: null,
         results: [],
+        bestGhost: this.bestGhostByLevel.get(level.id) ?? null,
       },
     }
   }
 
+  private getConnectedPlayerIds(): PlayerId[] {
+    return playerOrder.filter((playerId) => this.gameState.players[playerId].connected)
+  }
+
+  private resetVersusCountdownIfActive(): void {
+    if (this.mode !== 'versus' || this.gameState.versus?.status !== 'countdown') {
+      return
+    }
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...this.gameState.versus,
+        status: 'waiting',
+        countdownRemainingSeconds: 0,
+        ready: {},
+      },
+    }
+  }
+
+  private tryStartVersusCountdown(): void {
+    if (this.mode !== 'versus' || !this.gameState.versus) {
+      return
+    }
+
+    if (this.gameState.versus.status !== 'waiting') {
+      return
+    }
+
+    const activePlayerIds = this.getConnectedPlayerIds()
+    if (activePlayerIds.length < 1) {
+      return
+    }
+
+    const everyActivePlayerReady = activePlayerIds.every(
+      (playerId) => this.gameState.versus?.ready[playerId] === true,
+    )
+    if (!everyActivePlayerReady) {
+      return
+    }
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...this.gameState.versus,
+        status: 'countdown',
+        countdownRemainingSeconds: versusCountdownSeconds,
+      },
+    }
+  }
+
+  private createVersusRunsForConnectedPlayers(
+    level: LevelData,
+  ): VersusState['runs'] {
+    const runs: VersusState['runs'] = {}
+    for (const playerId of this.getConnectedPlayerIds()) {
+      runs[playerId] = createVersusPlayerRun(level, 0)
+    }
+
+    return runs
+  }
+
+  private startVersusRace(): void {
+    if (this.mode !== 'versus' || !this.gameState.versus) {
+      return
+    }
+
+    const level = getLevelById(this.currentLevelId)
+    this.currentGhostSamples = {}
+    this.lastGhostSampleAt = {}
+    this.resetInputState()
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...this.gameState.versus,
+        status: 'running',
+        raceElapsedSeconds: 0,
+        countdownRemainingSeconds: 0,
+        runs: this.createVersusRunsForConnectedPlayers(level),
+        winnerPlayerId: null,
+        results: [],
+        bestGhost: this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+      },
+    }
+  }
+
+  private restartVersusRace(): void {
+    if (this.mode !== 'versus' || !this.gameState.versus) {
+      return
+    }
+
+    const level = getLevelById(this.currentLevelId)
+    this.currentGhostSamples = {}
+    this.lastGhostSampleAt = {}
+    this.resetInputState()
+
+    this.gameState = {
+      ...this.gameState,
+      versus: {
+        ...this.gameState.versus,
+        status: 'waiting',
+        raceElapsedSeconds: 0,
+        countdownRemainingSeconds: 0,
+        ready: {},
+        runs: this.createVersusRunsForConnectedPlayers(level),
+        winnerPlayerId: null,
+        results: [],
+        bestGhost: this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+      },
+    }
+  }
+
+  private createGhostSample(run: VersusPlayerRun['run']): VersusGhostSample {
+    return {
+      elapsedSeconds: run.elapsedSeconds,
+      phase: run.phase,
+      frog: {
+        position: { ...run.frog.position },
+        velocity: { ...run.frog.velocity },
+      },
+      jumpDirection: { ...run.jumpDirection },
+    }
+  }
+
+  private recordGhostSample(playerId: PlayerId, run: VersusPlayerRun['run']): void {
+    const lastSampleAt = this.lastGhostSampleAt[playerId]
+    if (
+      lastSampleAt !== undefined
+      && run.elapsedSeconds - lastSampleAt < ghostSampleIntervalSeconds
+      && run.phase !== 'finished'
+    ) {
+      return
+    }
+
+    const samples = this.currentGhostSamples[playerId] ?? []
+    samples.push(this.createGhostSample(run))
+    this.currentGhostSamples[playerId] = samples
+    this.lastGhostSampleAt[playerId] = run.elapsedSeconds
+  }
+
+  private updateBestGhost(
+    playerId: PlayerId,
+    finishedAtSeconds: number,
+    run: VersusPlayerRun['run'],
+  ): void {
+    this.recordGhostSample(playerId, run)
+    const currentBestGhost = this.bestGhostByLevel.get(this.currentLevelId)
+    if (currentBestGhost && currentBestGhost.finishedAtSeconds <= finishedAtSeconds) {
+      return
+    }
+
+    const bestGhost: VersusBestGhost = {
+      playerId,
+      name: this.gameState.players[playerId].name,
+      finishedAtSeconds,
+      jumpCount: run.finishedAtJumpCount ?? run.jumpCount,
+      samples: this.currentGhostSamples[playerId] ?? [this.createGhostSample(run)],
+    }
+    this.bestGhostByLevel.set(this.currentLevelId, bestGhost)
+  }
+
   private resetVersusRun(playerId: PlayerId): void {
     const level = getLevelById(this.currentLevelId)
-    const versus = this.gameState.versus ?? createVersusState()
+    const versus = this.gameState.versus ?? createVersusState(
+      this.bestGhostByLevel.get(this.currentLevelId) ?? null,
+    )
     this.gameState = {
       ...this.gameState,
       versus: {
         ...versus,
+        ready: {
+          ...versus.ready,
+          [playerId]: false,
+        },
         runs: {
           ...versus.runs,
-          [playerId]: createVersusPlayerRun(level, this.gameState.elapsedSeconds),
+          [playerId]: createVersusPlayerRun(level, 0),
         },
       },
     }
@@ -564,9 +856,14 @@ export class GameRoom extends Room {
       return
     }
 
-    const activePlayerIds = playerOrder.filter(
-      (playerId) => this.gameState.players[playerId].connected,
-    )
+    if (this.gameState.versus.status !== 'running') {
+      return
+    }
+
+    const activePlayerIds = playerOrder.filter((playerId) => (
+      this.gameState.players[playerId].connected
+      && this.gameState.versus?.runs[playerId] !== undefined
+    ))
     if (activePlayerIds.length === 0) {
       return
     }

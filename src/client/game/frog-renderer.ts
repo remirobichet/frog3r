@@ -2,9 +2,17 @@ import type { Container } from 'pixi.js'
 import { AnimatedSprite, Rectangle, Text, Texture } from 'pixi.js'
 
 import { frogRadius } from '@shared/constants/game'
-import type { FrogRunState, GameState, PlayerId } from '@shared/types/game-state'
+import type {
+  FrogRunState,
+  GamePhase,
+  GameState,
+  PlayerId,
+  Vector2,
+  VersusGhostSample,
+} from '@shared/types/game-state'
 
 export type FrogAnimation = 'idle' | 'jump' | 'landing'
+export type FrogViewKey = PlayerId | 'bestGhost'
 
 export interface FrogView {
   sprite: AnimatedSprite
@@ -46,11 +54,18 @@ export function createFrogTextures(frogTexture: Texture): Texture[] {
 }
 
 export function getFrogAnimation(gameState: FrogRunState): FrogAnimation {
-  if (gameState.phase === 'charging' || gameState.phase === 'finished') {
+  return getFrogAnimationFromState(gameState.phase, gameState.frog.velocity)
+}
+
+function getFrogAnimationFromState(
+  phase: GamePhase,
+  velocity: Vector2,
+): FrogAnimation {
+  if (phase === 'charging' || phase === 'finished') {
     return 'idle'
   }
 
-  if (gameState.frog.velocity.y < 0) {
+  if (velocity.y < 0) {
     return 'jump'
   }
 
@@ -157,8 +172,83 @@ function updateFrogView(
   )
 }
 
+function getGhostSampleAt(
+  samples: VersusGhostSample[],
+  elapsedSeconds: number,
+): VersusGhostSample | null {
+  if (samples.length === 0) {
+    return null
+  }
+
+  if (elapsedSeconds <= samples[0].elapsedSeconds) {
+    return samples[0]
+  }
+
+  for (let index = 1; index < samples.length; index += 1) {
+    const nextSample = samples[index]
+    if (elapsedSeconds > nextSample.elapsedSeconds) {
+      continue
+    }
+
+    const previousSample = samples[index - 1]
+    const duration = nextSample.elapsedSeconds - previousSample.elapsedSeconds
+    const ratio = duration > 0
+      ? (elapsedSeconds - previousSample.elapsedSeconds) / duration
+      : 1
+
+    return {
+      elapsedSeconds,
+      phase: nextSample.phase,
+      frog: {
+        position: {
+          x: previousSample.frog.position.x
+            + (nextSample.frog.position.x - previousSample.frog.position.x) * ratio,
+          y: previousSample.frog.position.y
+            + (nextSample.frog.position.y - previousSample.frog.position.y) * ratio,
+        },
+        velocity: nextSample.frog.velocity,
+      },
+      jumpDirection: nextSample.jumpDirection,
+    }
+  }
+
+  return samples[samples.length - 1]
+}
+
+function updateGhostView(
+  view: FrogView,
+  sample: VersusGhostSample,
+  frogTextures: Texture[],
+): void {
+  view.sprite.visible = true
+  view.sprite.alpha = 0.34
+  view.sprite.tint = 0xcdfcff
+  view.sprite.position.set(
+    sample.frog.position.x,
+    sample.frog.position.y + FROG_VISUAL_Y_OFFSET,
+  )
+  view.animation = setFrogAnimation(
+    view.sprite,
+    frogTextures,
+    getFrogAnimationFromState(sample.phase, sample.frog.velocity),
+    view.animation,
+  )
+  setFrogFacing(
+    view.sprite,
+    sample.phase === 'airborne' ? sample.frog.velocity.x : sample.jumpDirection.x,
+  )
+
+  view.label.text = 'Best ghost'
+  view.label.alpha = 0.62
+  view.label.tint = 0xcdfcff
+  view.label.position.set(
+    sample.frog.position.x,
+    sample.frog.position.y - FROG_RENDER_SIZE + FROG_VISUAL_Y_OFFSET - 6,
+  )
+}
+
 export function renderVersusFrogs(
-  views: Map<PlayerId, FrogView>,
+  views: Map<FrogViewKey, FrogView>,
   container: Container,
   state: GameState,
   myPlayerId: PlayerId | null,
@@ -169,10 +259,27 @@ export function renderVersusFrogs(
     return
   }
 
-  const activePlayerIds = new Set<PlayerId>()
+  const activePlayerIds = new Set<FrogViewKey>()
   const myRun = myPlayerId ? versus.runs[myPlayerId] : null
   const localFinished = Boolean(myRun && myRun.finishedAtSeconds !== null)
   const showAllFrogsNormally = localFinished || versus.status === 'finished'
+
+  if (versus.bestGhost && versus.status === 'running') {
+    const sample = getGhostSampleAt(
+      versus.bestGhost.samples,
+      versus.raceElapsedSeconds,
+    )
+    if (sample) {
+      activePlayerIds.add('bestGhost')
+      let ghostView = views.get('bestGhost')
+      if (!ghostView) {
+        ghostView = createFrogView(frogTextures)
+        views.set('bestGhost', ghostView)
+        container.addChild(ghostView.sprite, ghostView.label)
+      }
+      updateGhostView(ghostView, sample, frogTextures)
+    }
+  }
 
   for (const playerId of playerOrder) {
     const playerRun = versus.runs[playerId]
@@ -208,12 +315,12 @@ export function renderVersusFrogs(
     )
   }
 
-  for (const [playerId, view] of views) {
-    if (activePlayerIds.has(playerId)) {
+  for (const [viewKey, view] of views) {
+    if (activePlayerIds.has(viewKey)) {
       continue
     }
 
-    views.delete(playerId)
+    views.delete(viewKey)
     destroyFrogView(view)
   }
 }

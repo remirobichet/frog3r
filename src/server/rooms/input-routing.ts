@@ -9,6 +9,8 @@ interface InputRouteHandlers {
   ping: (playerId: PlayerId, position: Vector2) => void
   debugTeleport: (playerId: PlayerId, position: Vector2) => void
   miniJump: (playerId: PlayerId) => void
+  setReady: (playerId: PlayerId, ready: boolean) => void
+  restartRace: () => void
 }
 
 interface RouteClientInputParams {
@@ -29,6 +31,15 @@ export function routeClientInput(params: RouteClientInputParams): boolean {
     }
 
     handlers.selectLevel(input.levelId)
+    return true
+  }
+
+  if (input.type === 'restartRace') {
+    if (params.clientSessionId !== params.creatorSessionId) {
+      return false
+    }
+
+    handlers.restartRace()
     return true
   }
 
@@ -59,5 +70,8 @@ export function routeClientInput(params: RouteClientInputParams): boolean {
     case 'miniJump':
       handlers.miniJump(playerId)
       return false
+    case 'setReady':
+      handlers.setReady(playerId, input.ready)
+      return true
   }
 }

@@ -35,6 +35,15 @@ export interface DebugTeleportInputMessage {
   position: Vector2
 }
 
+export interface SetReadyInputMessage {
+  type: 'setReady'
+  ready: boolean
+}
+
+export interface RestartRaceInputMessage {
+  type: 'restartRace'
+}
+
 export type ClientInputMessage =
   | AimInputMessage
   | ChargeInputMessage
@@ -43,6 +52,8 @@ export type ClientInputMessage =
   | SetNameInputMessage
   | PingInputMessage
   | DebugTeleportInputMessage
+  | SetReadyInputMessage
+  | RestartRaceInputMessage
 
 export interface JoinedMessage {
   playerId: PlayerId
